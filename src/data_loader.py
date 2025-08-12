@@ -16,7 +16,7 @@ class EgoComDataset(Dataset):
         print("[EgoComDataset] Loading data from {} ({} files)".format(self.json_dir, len(file_names)))
         print("[EgoComDataset] Using max_detections: {}".format(self.max_detections))
         
-        df = pd.read_csv(os.path.join(data_dir, "transcript", "ground_truth_transcript_with_frames.csv"))
+        df = pd.read_csv(os.path.join(data_dir, "transcript", "ground_truth_transcriptions_with_frames.csv"))
         
         self.samples = []
         self.cache = {}
