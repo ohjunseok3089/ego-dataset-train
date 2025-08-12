@@ -1,6 +1,7 @@
 import json
 import os
 import glob
+import re
 import pandas as pd
 
 import torch
@@ -51,8 +52,8 @@ class EgoComDataset(Dataset):
     
         metadata = data["metadata"]
         
-        # Video path
-        video_path = os.path.join(metadata["video_path"], ".MP4")
+        # Video path (already contains extension in metadata)
+        video_path = metadata.get("video_path", "")
         
         # Co-tracker's red circle (not sure to add this)
         
@@ -66,17 +67,19 @@ class EgoComDataset(Dataset):
             head_movement = torch.zeros(2, dtype=torch.float32)
             
         # Body and face detections
-        body_detections = frame_data.get("body_detection", {})
-        face_detections = frame_data.get("face_detection", {})
+        body_detections = frame_data.get("body_detection", []) or []
+        face_detections = frame_data.get("face_detection", []) or []
+        social_category = frame_data.get("social_category", "unknown")
+        speaker_id = frame_data.get("speaker_id", 0)
         
         body_boxes = self._process_detections(body_detections)
         face_boxes = self._process_detections(face_detections)
         
-        # social_category
-        social_category = metadata.get("social_category", "unknown")
-        
-        # speaker_id
-        speaker_id = metadata.get("speaker_id", 0)
+        # social_category (per-frame) with fallback from filename
+        if not social_category or social_category == "unknown":
+            social_category = self._infer_social_category_from_name(metadata)
+
+        # speaker_id (per-frame)
         
 
         sample = {
@@ -107,6 +110,25 @@ class EgoComDataset(Dataset):
             
         boxes = torch.tensor(boxes, dtype=torch.float32)
         return boxes
+
+    def _infer_social_category_from_name(self, metadata):
+        """Infer social category from video name/path, e.g.,
+        vid_..._part1(0_1920_social_interaction).MP4 -> social_interaction
+        """
+        name = metadata.get("video_name") or os.path.basename(metadata.get("video_path", ""))
+        if not name:
+            return "unknown"
+        # Extract text inside parentheses
+        match = re.search(r"\(([^)]*)\)", name)
+        if not match:
+            return "unknown"
+        inside = match.group(1)
+        # Expect pattern like start_end_label (underscored). Take last token as label
+        parts = inside.split("_")
+        if len(parts) < 3:
+            return "unknown"
+        label = parts[-1]
+        return label or "unknown"
     
     
 if __name__ == "__main__":
