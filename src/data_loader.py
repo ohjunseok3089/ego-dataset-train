@@ -59,13 +59,19 @@ class EgoComDataset(Dataset):
         
         # Head movement
         head_movement_data = frame_data.get("head_movement", {})
+        next_movement_data = frame_data.get("next_movement", {})
         if head_movement_data:
             h_rad = head_movement_data.get("horizontal", {}).get("radians", 0.0)
             v_rad = head_movement_data.get("vertical", {}).get("radians", 0)
             head_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
         else:
             head_movement = torch.zeros(2, dtype=torch.float32)
-            
+        if next_movement_data:
+            h_rad = next_movement_data.get("horizontal", {}).get("radians", 0.0)
+            v_rad = next_movement_data.get("vertical", {}).get("radians", 0)
+            next_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
+        else:
+            next_movement = torch.zeros(2, dtype=torch.float32)
         # Body and face detections
         body_detections = frame_data.get("body_detection", []) or []
         face_detections = frame_data.get("face_detection", []) or []
@@ -86,6 +92,7 @@ class EgoComDataset(Dataset):
             "video_path": video_path,
             "frame_idx": frame_idx,
             "head_movement": head_movement,
+            "next_movement": next_movement,
             "body_boxes": body_boxes,
             "face_boxes": face_boxes,
             "social_category": social_category,
