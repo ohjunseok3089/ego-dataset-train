@@ -52,7 +52,7 @@ class GLC_Baseline:
         cfg.DATA.INPUT_CHANNEL_NUM = [3]
         cfg.DATA.TARGET_FPS = 30
         cfg.DATA.USE_OFFSET_SAMPLING = False
-        cfg.DATA.GAUSSIAN_KERNEL = 19  # For generating gaze heatmaps
+        cfg.DATA.GAUSSIAN_KERNEL = 19  # GLC standard: 19x19 Gaussian kernel
         
         # MVIT Configuration - Required for GLC_Gaze model architecture
         cfg.MVIT.ZERO_DECAY_POS_CLS = False
@@ -151,47 +151,83 @@ class GLC_Baseline:
         
         return torch.tensor([abs_x, abs_y], dtype=torch.float32)
     
-    def create_gaze_heatmap(self, gaze_coords, heatmap_size=(64, 64), sigma=5.0):
+    def create_gaze_heatmap(self, gaze_coords, heatmap_size=(64, 64), kernel_size=19):
         """
-        Create Gaussian heatmap from gaze coordinates
+        Create Gaussian heatmap from gaze coordinates using GLC's method
         
         Args:
             gaze_coords: (2,) tensor [x, y] in pixel coordinates (256x256 space)
-            heatmap_size: tuple (H, W) for output heatmap size
-            sigma: Standard deviation for Gaussian kernel
+            heatmap_size: tuple (H, W) for output heatmap size (default: 64x64 = 256//4)
+            kernel_size: Size of Gaussian kernel (default: 19, same as GLC)
             
         Returns:
             heatmap: (H, W) tensor representing gaze probability
         """
+        import cv2
+        
         H, W = heatmap_size
         
-        # Scale coordinates from 256x256 to heatmap_size
+        # Scale coordinates from 256x256 to heatmap_size (following GLC's 1/4 scale)
         scale_x = W / 256.0
         scale_y = H / 256.0
         
-        scaled_x = gaze_coords[0] * scale_x
-        scaled_y = gaze_coords[1] * scale_y
+        center_x = gaze_coords[0] * scale_x
+        center_y = gaze_coords[1] * scale_y
         
-        # Create coordinate grids
-        y_coords, x_coords = torch.meshgrid(
-            torch.arange(H, dtype=torch.float32),
-            torch.arange(W, dtype=torch.float32),
-            indexing='ij'
-        )
+        # Initialize heatmap
+        heatmap = np.zeros((H, W), dtype=np.float32)
         
-        # Calculate Gaussian heatmap
-        gaussian = torch.exp(
-            -((x_coords - scaled_x) ** 2 + (y_coords - scaled_y) ** 2) / (2 * sigma ** 2)
-        )
+        # Use GLC's _get_gaussian_map method
+        self._get_gaussian_map(heatmap, center=(center_x, center_y), kernel_size=kernel_size, sigma=-1)
         
-        # Normalize to [0, 1]
-        gaussian = gaussian / (gaussian.max() + 1e-8)
+        # Normalize to sum=1 (following GLC's normalization)
+        d_sum = heatmap.sum()
+        if d_sum == 0:  # gaze may be outside the image
+            heatmap = heatmap + 1 / (H * W)  # uniform distribution
+        elif d_sum != 1:  # gaze may be right at the edge of image
+            heatmap = heatmap / d_sum
         
-        return gaussian
+        return torch.from_numpy(heatmap).float()
+    
+    @staticmethod
+    def _get_gaussian_map(heatmap, center, kernel_size, sigma):
+        """
+        GLC's original Gaussian map generation function
+        
+        Args:
+            heatmap: numpy array to fill with Gaussian values
+            center: (x, y) center coordinates
+            kernel_size: Size of Gaussian kernel
+            sigma: Standard deviation (-1 for default)
+        """
+        import cv2
+        
+        h, w = heatmap.shape
+        mu_x, mu_y = round(center[0]), round(center[1])
+        left = max(mu_x - (kernel_size - 1) // 2, 0)
+        right = min(mu_x + (kernel_size - 1) // 2, w-1)
+        top = max(mu_y - (kernel_size - 1) // 2, 0)
+        bottom = min(mu_y + (kernel_size - 1) // 2, h-1)
+
+        if left >= right or top >= bottom:
+            pass  # Skip if invalid region
+        else:
+            # Generate 1D Gaussian kernel using OpenCV
+            kernel_1d = cv2.getGaussianKernel(ksize=kernel_size, sigma=sigma, ktype=cv2.CV_32F)
+            kernel_2d = kernel_1d * kernel_1d.T  # 2D kernel from outer product
+            
+            # Calculate kernel region indices
+            k_left = (kernel_size - 1) // 2 - mu_x + left
+            k_right = (kernel_size - 1) // 2 + right - mu_x
+            k_top = (kernel_size - 1) // 2 - mu_y + top
+            k_bottom = (kernel_size - 1) // 2 + bottom - mu_y
+
+            # Apply Gaussian kernel to heatmap region
+            heatmap[top:bottom+1, left:right+1] = kernel_2d[k_top:k_bottom+1, k_left:k_right+1]
     
     def convert_next_movements_to_heatmaps(self, next_movements, num_frames=8):
         """
-        Convert next_movements to target heatmaps for training
+        Convert next_movements to target heatmaps using GLC's method
         
         Args:
             next_movements: (num_frames, 2) tensor of movement vectors in radians
@@ -202,13 +238,18 @@ class GLC_Baseline:
         """
         batch_size = 1
         channels = 1
-        heatmap_size = (64, 64)
+        heatmap_size = (64, 64)  # GLC standard: image_size // 4 = 256 // 4 = 64
+        kernel_size = self.cfg.DATA.GAUSSIAN_KERNEL  # 19 (GLC standard)
         
         # Initialize output tensor
         target_heatmaps = torch.zeros(batch_size, channels, num_frames, *heatmap_size)
         
         # Current gaze position (start from center)
         current_position = torch.tensor([128.0, 128.0])  # Center of 256x256
+        
+        print(f"🔍 Converting {num_frames} movements to heatmaps (GLC method)")
+        print(f"  Kernel size: {kernel_size}x{kernel_size}")
+        print(f"  Heatmap size: {heatmap_size[0]}x{heatmap_size[1]}")
         
         for frame_idx in range(min(num_frames, next_movements.size(0))):
             # Get movement for this frame
@@ -221,11 +262,21 @@ class GLC_Baseline:
             current_position = current_position + pixel_coords - torch.tensor([128.0, 128.0])
             current_position = torch.clamp(current_position, 0, 255)
             
-            # Create heatmap for this gaze position
-            heatmap = self.create_gaze_heatmap(current_position, heatmap_size)
+            # Create heatmap using GLC's method
+            heatmap = self.create_gaze_heatmap(
+                current_position, 
+                heatmap_size=heatmap_size,
+                kernel_size=kernel_size
+            )
             
             # Store in output tensor
             target_heatmaps[0, 0, frame_idx] = heatmap
+            
+            # Debug info for first few frames
+            if frame_idx < 3:
+                print(f"  Frame {frame_idx}: movement={movement.numpy()}, "
+                      f"position=({current_position[0]:.1f}, {current_position[1]:.1f}), "
+                      f"heatmap_sum={heatmap.sum():.4f}")
         
         return target_heatmaps
     
@@ -518,6 +569,7 @@ class GLC_Baseline:
             
             print(f"✅ GLC_Gaze training compatibility test successful!")
             print(f"  ✅ Using real next_movement data as targets")
+            print(f"  ✅ GLC standard Gaussian heatmaps (kernel_size={cfg.DATA.GAUSSIAN_KERNEL})")
             print(f"  Loss: {loss.item():.6f}")
             print(f"  Target type: Real movement-based heatmaps")
             print(f"  Target range: [{real_target.min().item():.4f}, {real_target.max().item():.4f}]")
