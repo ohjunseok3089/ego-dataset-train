@@ -5,6 +5,10 @@ import os
 from pathlib import Path
 import cv2
 import numpy as np
+
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 from src.data_loader import EgoComDataset
 
 glc_path = os.path.expanduser("~/junseok/GLC")
