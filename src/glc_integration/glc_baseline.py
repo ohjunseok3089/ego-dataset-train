@@ -378,7 +378,7 @@ class GLC_Baseline:
     
     def test_model_with_real_data(self, use_cropped=True):
         """Test GLC_Gaze model with real EGOCOM data"""
-        print(f"\n🚀 GLC_Gaze real data test started")
+        print(f"\nGLC_Gaze real data test started")
         
         # Check cropped directory
         cropped_dir = Path("/mas/robots/prg-egocom/glc/full_scale.gaze")
@@ -387,7 +387,7 @@ class GLC_Baseline:
             use_cropped = False
         elif use_cropped:
             cropped_files = list(cropped_dir.glob("*.MP4"))
-            print(f"📐 Cropped videos found: {len(cropped_files)}")
+            print(f"Cropped videos found: {len(cropped_files)}")
         
         # Load dataset
         dataset = self.load_data()
@@ -437,7 +437,7 @@ class GLC_Baseline:
                 video_tensor = video_tensor.to(self.device)
                 
                 # Debug tensor dimensions
-                print(f"🔍 Tensor debugging:")
+                print(f"Tensor debugging:")
                 print(f"  video_tensor.shape: {video_tensor.shape}")
                 print(f"  video_tensor.dim(): {video_tensor.dim()}")
                 print(f"  Expected: (B, C, T, H, W) = (1, 3, 8, 256, 256)")
