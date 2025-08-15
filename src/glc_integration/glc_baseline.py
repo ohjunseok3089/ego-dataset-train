@@ -236,10 +236,10 @@ class GLC_Baseline:
                 sample = dataset[i]
                 
                 print(f"Video path: {sample['video_path']}")
-                print(f"Frame index: {sample['frame_idx']}")
-                print(f"Head movement: {sample['head_movement']}")
-                print(f"Next movement: {sample['next_movement']}")
-                print(f"Social category: {sample['social_category']}")
+                print(f"Frame index: {sample['num_frames']}")
+                # print(f"Head movement: {sample['head_movements']}")
+                # print(f"Next movement: {sample['next_movements']}")
+                # print(f"Social category: {sample['social_categories']}")
                 
                 video_tensor = self.convert_sample_to_glc_format(sample, use_crop=use_cropped)
                 if video_tensor is None:
