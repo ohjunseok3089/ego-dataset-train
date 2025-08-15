@@ -120,6 +120,7 @@ class GLC_Baseline:
     
     def convert_movement_to_pixel_coordinates(self, movement_radians, roi_width=256, roi_height=256):
         """
+        (Revisit to see. I think we can just use red dot position)
         Convert angular movement (radians) to pixel coordinates
         
         Args:
@@ -624,10 +625,6 @@ def main():
             print("✅ GLC_Gaze model works with our data")
             print("✅ Training possible with real next_movement targets")
             print("✅ Next_movement → gaze heatmap conversion working")
-            print("\n📝 Next steps:")
-            print("1. Report success to Bolton")
-            print("2. Implement full training loop with real targets")
-            print("3. Add audio/language representations")
         else:
             print("\n⚠️ Inference works but training has issues")
     else:
