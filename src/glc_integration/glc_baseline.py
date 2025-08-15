@@ -203,7 +203,10 @@ class GLC_Baseline:
         import cv2
         
         h, w = heatmap.shape
-        mu_x, mu_y = round(center[0]), round(center[1])
+        # Convert to float if tensor, then round
+        center_x_val = center[0].item() if hasattr(center[0], 'item') else float(center[0])
+        center_y_val = center[1].item() if hasattr(center[1], 'item') else float(center[1])
+        mu_x, mu_y = round(center_x_val), round(center_y_val)
         left = max(mu_x - (kernel_size - 1) // 2, 0)
         right = min(mu_x + (kernel_size - 1) // 2, w-1)
         top = max(mu_y - (kernel_size - 1) // 2, 0)
