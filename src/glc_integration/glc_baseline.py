@@ -262,7 +262,8 @@ class GLC_Baseline:
                     print(f"  ✅ Modified: {video_tensor.shape}")
                 
                 with torch.no_grad():
-                    output = model(video_tensor)
+                    # GLC_Gaze model expects input as a list containing the tensor
+                    output = model([video_tensor])
                 
                 print(f"✅ GLC_Gaze inference successful!")
                 print(f"  Input: {video_tensor.shape}")
@@ -312,40 +313,41 @@ class GLC_Baseline:
             batch_size = video_tensor.size(0)
             dummy_target = torch.randn(batch_size, 2).to(self.device)  # (B, 2)
             
-            output = model(video_tensor)
+            # GLC_Gaze model expects input as a list containing the tensor
+            output = model([video_tensor])
             print(f"Model output shape: {output.shape}")
             
+            # Use dummy_target for compatibility testing (real_target doesn't exist here)
+            target = dummy_target
+            
             if len(output.shape) == 3:
-                if real_target.size(1) != output.size(1):
-                    print(f"⚠️ Frame number mismatch: target={real_target.size(1)}, output={output.size(1)}")
-                    if real_target.size(1) > output.size(1):
-                        real_target = real_target[:, :output.size(1), :]
-                    else:
-                        last_movement = real_target[:, -1:, :]
-                        padding_needed = output.size(1) - real_target.size(1)
-                        padding = last_movement.repeat(1, padding_needed, 1)
-                        real_target = torch.cat([real_target, padding], dim=1)
-                    print(f"✅ Adjusted target shape: {real_target.shape}")
+                # Model outputs per-frame predictions, adjust target accordingly
+                target = target.unsqueeze(1).expand(-1, output.size(1), -1)  # (B, T, 2)
+                print(f"✅ Expanded target for sequence prediction: {target.shape}")
                         
             elif len(output.shape) == 2:
-                real_target = real_target.mean(dim=1)  # (B, 2) - 평균 movement
-                print(f"✅ Single prediction target: {real_target.shape}")
+                # Model outputs single prediction, use dummy_target as is
+                print(f"✅ Single prediction target: {target.shape}")
             
             else:
                 print(f"⚠️ Unexpected model output: {output.shape}")
                 return False
             
-            loss = criterion(output, real_target)
+            loss = criterion(output, target)
             
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
             print(f"✅ GLC_Gaze training compatibility test successful!")
-            print(f"  Using real next_movement")
+            print(f"  Using dummy target for compatibility testing")
             print(f"  Loss: {loss.item():.6f}")
-            print(f"  Target movement example: {real_target[0, 0, :].cpu().numpy()} (first frame)")
-            print(f"  Predicted movement: {output[0, 0, :].detach().cpu().numpy()} (first frame)")
+            if len(target.shape) == 3:
+                print(f"  Target movement example: {target[0, 0, :].cpu().numpy()} (first frame)")
+                print(f"  Predicted movement: {output[0, 0, :].detach().cpu().numpy()} (first frame)")
+            else:
+                print(f"  Target movement example: {target[0, :].cpu().numpy()}")
+                print(f"  Predicted movement: {output[0, :].detach().cpu().numpy()}")
             print(f"  Gradient exists: {'Yes' if any(p.grad is not None for p in model.parameters()) else 'No'}")
             
             return True
