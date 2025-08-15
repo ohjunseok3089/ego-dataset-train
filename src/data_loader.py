@@ -50,7 +50,7 @@ class EgoComDataset(Dataset):
         frames = data["frames"]
         
         # Video path (already contains extension in metadata)
-        video_path = metadata.get("video_path", "")
+        video_path = metadata.get("video_path", "") + ".MP4"
         
         # Process all frames for this video
         all_head_movements = []
