@@ -57,18 +57,20 @@ class EgoComDataset(Dataset):
         
         # Co-tracker's red circle (not sure to add this)
         
-        # Head movement
-        head_movement_data = frame_data.get("head_movement", {})
-        next_movement_data = frame_data.get("next_movement", {})
-        if head_movement_data:
-            h_rad = head_movement_data.get("horizontal", {}).get("radians", 0.0)
-            v_rad = head_movement_data.get("vertical", {}).get("radians", 0)
+        # Head movement (handle null values for first frame)
+        head_movement_data = frame_data.get("head_movement")
+        next_movement_data = frame_data.get("next_movement")
+        
+        if head_movement_data and head_movement_data is not None:
+            h_rad = head_movement_data.get("horizontal", {}).get("radians", 0.0) if head_movement_data.get("horizontal") else 0.0
+            v_rad = head_movement_data.get("vertical", {}).get("radians", 0.0) if head_movement_data.get("vertical") else 0.0
             head_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
         else:
             head_movement = torch.zeros(2, dtype=torch.float32)
-        if next_movement_data:
-            h_rad = next_movement_data.get("horizontal", {}).get("radians", 0.0)
-            v_rad = next_movement_data.get("vertical", {}).get("radians", 0)
+            
+        if next_movement_data and next_movement_data is not None:
+            h_rad = next_movement_data.get("horizontal", {}).get("radians", 0.0) if next_movement_data.get("horizontal") else 0.0
+            v_rad = next_movement_data.get("vertical", {}).get("radians", 0.0) if next_movement_data.get("vertical") else 0.0
             next_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
         else:
             next_movement = torch.zeros(2, dtype=torch.float32)
@@ -77,6 +79,7 @@ class EgoComDataset(Dataset):
         face_detections = frame_data.get("face_detection", []) or []
         social_category = frame_data.get("social_category", "unknown")
         speaker_id = frame_data.get("speaker_id", 0)
+        
         
         body_boxes = self._process_detections(body_detections)
         face_boxes = self._process_detections(face_detections)
@@ -122,7 +125,8 @@ class EgoComDataset(Dataset):
         """Infer social category from video name/path, e.g.,
         vid_..._part1(0_1920_social_interaction).MP4 -> social_interaction
         """
-        name = metadata.get("video_name") or os.path.basename(metadata.get("video_path", ""))
+        # Handle both old format (video_name) and new format (group_id)
+        name = metadata.get("video_name") or metadata.get("group_id") or os.path.basename(metadata.get("video_path", ""))
         if not name:
             return "unknown"
         # Extract text inside parentheses

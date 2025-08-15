@@ -33,29 +33,29 @@ EGOCOM/
 
 - **Joined ground truth JSON – structure**:
   - Top-level keys:
-    - `metadata`: video-level info (`video_name`, `video_path`, `video_duration`, `video_fps`)
-    - `roi`: region of interest in content coordinates (`x`, `y`, `w`, `h`)
-    - `frame_size_full`: original frame size (`width`, `height`)
-    - `analysis_summary`: processing stats (`total_frames_processed`, `detected_frames`)
+    - `metadata`: video-level info with either `video_name` (original) or `group_id` (prediction format), `analysis_type` (optional), `roi`, `frame_size_full`
+    - `analysis_summary`: processing stats (`total_frames_processed`, `detected_frames`, `prediction_accuracy` for prediction analysis)
     - `frames`: array of per-frame annotations
   - Per-frame keys (each element of `frames`):
     - `frame_index`, `timestamp`, `social_category`
     - `red_circle`: `detected`, `position_full` [x,y], `position_content` [x,y], `radius`
-    - `head_movement` and `next_movement`: each has `horizontal` and `vertical` with `radians` and `degrees`
+    - `head_movement` and `next_movement`: each has `horizontal` and `vertical` with `radians` and `degrees` (may be null for first frame)
     - `speaker_id`
-    - `face_detection`: array of boxes with `x1`,`y1`,`x2`,`y2`,`speaker_id`
-    - `body_detection`: array of boxes with `x1`,`y1`,`x2`,`y2`,`speaker_id`
+    - `face_detection`: array of boxes with `x1`,`y1`,`x2`,`y2`,`speaker_id` (optional)
+    - `body_detection`: array of boxes with `x1`,`y1`,`x2`,`y2`,`speaker_id` (optional)
 ```json
 {
   "metadata": {
-    "video_name": "vid_001__day_1__con_1__person_1_part1(0_1920_social_interaction)",
-    "video_path": "/<base_path>/vid_001__day_1__con_1__person_1_part1(0_1920_social_interaction).MP4",
-    "video_duration": 1920,
-    "video_fps": 30
+    "group_id": "vid_001__day_1__con_1__person_1_part1(0_1920_social_interaction)",
+    "analysis_type": "past_frame_prediction",
+    "roi": { "x": 120, "y": 120, "w": 1280, "h": 720 },
+    "frame_size_full": { "width": 1520, "height": 960 }
   },
-  "roi": { "x": 120, "y": 120, "w": 1280, "h": 720 },
-  "frame_size_full": { "width": 1520, "height": 960 },
-  "analysis_summary": { "total_frames_processed": 1914, "detected_frames": 1914 },
+  "analysis_summary": { 
+    "total_frames_processed": 1914, 
+    "detected_frames": 1914,
+    "prediction_accuracy": {}
+  },
   "frames": [
     {
       "frame_index": 0,
@@ -69,21 +69,12 @@ EGOCOM/
       },
       "head_movement": {
         "horizontal": { "radians": -0.00567232006898157, "degrees": -0.325 },
-        "vertical": { "radians": 0.014180800172453928, "degrees": 0.8125 }
+        "vertical": { "radians": -0.00567232006898157, "degrees": -0.325 }
       },
       "next_movement": {
         "horizontal": { "radians": -0.00567232006898157, "degrees": -0.325 },
         "vertical": { "radians": 0.014180800172453928, "degrees": 0.8125 }
-      },
-      "speaker_id": 1,
-      "face_detection": [
-        { "x1": 120, "y1": 120, "x2": 1280, "y2": 720, "speaker_id": 1 },
-        { "x1": 120, "y1": 120, "x2": 1280, "y2": 720, "speaker_id": 2 }
-      ],
-      "body_detection": [
-        { "x1": 120, "y1": 120, "x2": 1280, "y2": 720, "speaker_id": 1 },
-        { "x1": 120, "y1": 120, "x2": 1280, "y2": 720, "speaker_id": 2 }
-      ]
+      }
     }
   ]
 }
