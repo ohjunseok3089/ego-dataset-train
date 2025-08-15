@@ -11,8 +11,7 @@ class DataConverter:
         self.output_root = Path(output_root)
         self.output_root.mkdir(exist_ok=True, parents=True)
         
-        # Only need gaze_frame_label directory for the new format
-        (self.output_root / "gaze_frame_label").mkdir(exist_ok=True)
+        (self.output_root / "gaze").mkdir(exist_ok=True)
         
     def convert_movement_to_normalized(self, movement_data, roi_width=1280, roi_height=720):
         # Handle null/None movement data (e.g., first frame)
