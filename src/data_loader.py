@@ -160,8 +160,8 @@ if __name__ == "__main__":
     
     data_dir = "/mas/robots/prg-egocom/EGOCOM"
     target_files = [
-        'vid_001__day_1__con_1__person_1_part1(0_1920_social_interaction)',
-        'vid_001__day_1__con_1__person_1_part1(1980_2370_social_interaction)'
+        'vid_001__day_1__con_1__person_1_part1(0_1920_social_interaction).MP4',
+        'vid_001__day_1__con_1__person_1_part1(1980_2370_social_interaction).MP4'
     ]
     dataset = EgoComDataset(data_dir, file_names=target_files)
     
