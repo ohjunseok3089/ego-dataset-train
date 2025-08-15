@@ -156,8 +156,8 @@ class DataConverter:
         # Create DataFrame with the required columns: frame, x, y, gaze_type
         gaze_df = pd.DataFrame(gaze_data, columns=['frame', 'x', 'y', 'gaze_type'])
         
-        # Save to gaze_frame_label directory with the correct naming format
-        label_csv_path = self.output_root / "gaze_frame_label" / f"{video_name}_frame_label.csv"
+        # Save to gaze directory with the correct naming format
+        label_csv_path = self.output_root / "gaze" / f"{video_name}_frame_label.csv"
         gaze_df.to_csv(label_csv_path, index=False)
         
         # Conversion complete silently
@@ -182,13 +182,14 @@ class DataConverter:
                     gaze_type_stats[frame_data[3]] += 1
                     
             except Exception as e:
+                print(f"Error processing {json_file}: {e}")
                 continue
                 
         print(f"Converted {converted_count} files ({total_frames} frames) -> {self.output_root}")
 
 if __name__ == "__main__":
     egocom_root = "/mas/robots/prg-egocom/EGOCOM"
-    output_root = "/mas/robots/prg-egocom/glc_dataset"
+    output_root = "/mas/robots/prg-egocom/glc"
     
     converter = DataConverter(egocom_root, output_root)
     converter.convert_all()
