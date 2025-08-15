@@ -31,6 +31,30 @@ class DataConverter:
         
         return [norm_x, norm_y]
     
+    def apply_video_crop_to_gaze(self, gaze_x, gaze_y, original_width=1280, original_height=720, target_size=256):
+        pixel_x = gaze_x * original_width
+        pixel_y = gaze_y * original_height
+        
+        scale_factor = target_size / original_height
+        new_width = original_width * scale_factor
+        
+        scaled_x = pixel_x * scale_factor
+        scaled_y = pixel_y * scale_factor
+        
+        crop_start_x = (new_width - target_size) / 2
+        crop_end_x = crop_start_x + target_size
+        
+        if scaled_x < crop_start_x or scaled_x > crop_end_x or scaled_y < 0 or scaled_y > target_size:
+            return None
+        
+        cropped_x = scaled_x - crop_start_x
+        cropped_y = scaled_y
+        
+        normalized_x = cropped_x / target_size
+        normalized_y = cropped_y / target_size
+        
+        return (normalized_x, normalized_y)
+    
     def calculate_gaze_type(self, current_pos, previous_pos, frame_idx):
         """
         Calculate gaze type based on movement between frames.
@@ -104,9 +128,27 @@ class DataConverter:
                     gaze_type = 2
                     current_pos[0] = np.clip(current_pos[0], 0.0, 1.0)
                     current_pos[1] = np.clip(current_pos[1], 0.0, 1.0)
-                
+            
+            # Apply video crop transformation to gaze coordinates
+            roi = data.get("roi", {}) or metadata.get("roi", {})
+            roi_width = roi.get("w", 1280)
+            roi_height = roi.get("h", 720)
+            
+            cropped_coords = self.apply_video_crop_to_gaze(
+                current_pos[0], current_pos[1], 
+                roi_width, roi_height
+            )
+            
+            if cropped_coords is None:
+                # Gaze is outside crop area - mark as out-of-bounds and use center coordinates
+                gaze_type = 2
+                crop_x, crop_y = 0.5, 0.5  # Center of cropped area
+            else:
+                # Use cropped coordinates
+                crop_x, crop_y = cropped_coords
+            
             # Append data in the required format: [frame, x, y, gaze_type]
-            gaze_data.append([frame_idx, current_pos[0], current_pos[1], gaze_type])
+            gaze_data.append([frame_idx, crop_x, crop_y, gaze_type])
         
         return gaze_data, video_name
     
