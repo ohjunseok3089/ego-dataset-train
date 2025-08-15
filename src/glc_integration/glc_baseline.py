@@ -598,7 +598,6 @@ def main():
         print(f"Data path not found: {data_dir}")
         return
     
-    print("🎯 Goal: GLC_Gaze model + EGOCOM data compatibility with real targets")
     print("=" * 70)
     
     # Initialize tester
