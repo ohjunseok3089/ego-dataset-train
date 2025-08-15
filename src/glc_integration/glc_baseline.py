@@ -85,6 +85,7 @@ class GLC_Baseline:
         self.cfg = cfg
         return cfg
     
+
     def load_data(self):
         target_files = [
             "vid_001__day_1__con_1__person_1_part1(0_1920_social_interaction)",
@@ -102,10 +103,10 @@ class GLC_Baseline:
                 print(f"File not found: {file_name}")
                 
         if not available_files:
-            print("No available files")
+            print("❌ No available files")
             return None
             
-        print(f"{len(available_files)} files found: {available_files}")
+        print(f"✅ {len(available_files)} files found: {available_files}")
         dataset = EgoComDataset(self.data_dir, file_names=available_files)
         
         return dataset
@@ -127,7 +128,7 @@ class GLC_Baseline:
                 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            print(f"Failed to open video: {video_path}")
+            print(f"❌ Video open failed: {video_path}")
             return None
         
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -177,10 +178,10 @@ class GLC_Baseline:
                     frames.append(np.zeros((target_size, target_size, 3), dtype=np.uint8))
         
         frames = frames[:target_frames]
-        video_tensor = np.array(frames)
+        video_tensor = np.array(frames)  # (T, H, W, C)
         video_tensor = torch.from_numpy(video_tensor).float()
-        video_tensor = video_tensor.permute(3, 0, 1, 2)
-        video_tensor = video_tensor / 255.0
+        video_tensor = video_tensor.permute(3, 0, 1, 2)  # (C, T, H, W)
+        video_tensor = video_tensor / 255.0  # normalize pixels [0, 1]
         
         mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1, 1)
@@ -188,27 +189,29 @@ class GLC_Baseline:
         
         video_tensor = video_tensor.unsqueeze(0)
         
-        print(f"Video conversion complete: {video_tensor.shape}")
-        print(f"  GLC_Gaze format: (B=1, C=3, T={target_frames}, H={target_size}, W={target_size})")
+        print(f"✅ Video conversion completed: {video_tensor.shape}")
+        print(f"  GLC_Gaze shape: (B=1, C=3, T={target_frames}, H={target_size}, W={target_size})")
         
         return video_tensor
     
     def test_model_with_real_data(self, use_cropped=True):
-        print(f"\nGLC_Gaze real data test started")
+        print(f"\n🚀 GLC_Gaze real data test started")
         
+        # Cropped 디렉토리 확인
         cropped_dir = Path("/mas/robots/prg-egocom/glc/full_scale.gaze")
         if use_cropped and not cropped_dir.exists():
             print(f"Cropped directory not found: {cropped_dir}")
             use_cropped = False
         elif use_cropped:
             cropped_files = list(cropped_dir.glob("*.MP4"))
-            print(f"Cropped video found: {len(cropped_files)}")
+            print(f"Cropped videos found: {len(cropped_files)}")
         
-        dataset = self.load_data()
+        # 데이터 로드
+        dataset = self.load_data()  # load_real_dataset -> load_data
         if dataset is None:
             return False
             
-        print(f"Dataset loaded successfully: {len(dataset)} samples")
+        print(f"✅ Dataset loaded: {len(dataset)} samples")
             
         print("\n=== GLC_Gaze model loaded ===")
         try:
@@ -218,10 +221,10 @@ class GLC_Baseline:
             model.eval()
             
             total_params = sum(p.numel() for p in model.parameters())
-            print(f"GLC_Gaze model loaded successfully: {total_params:,} parameters")
+            print(f"✅ GLC_Gaze model loaded: {total_params:,} parameters")
             
         except Exception as e:
-            print(f"GLC_Gaze model load failed: {e}")
+            print(f"❌ GLC_Gaze model load failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -243,15 +246,25 @@ class GLC_Baseline:
                 
                 video_tensor = self.convert_sample_to_glc_format(sample, use_crop=use_cropped)
                 if video_tensor is None:
-                    print(f"Sample {i+1} video conversion failed")
+                    print(f"❌ Sample {i+1} video conversion failed")
                     continue
                 
                 video_tensor = video_tensor.to(self.device)
                 
+                print(f"🔍 Tensor debugging:")
+                print(f"  video_tensor.shape: {video_tensor.shape}")
+                print(f"  video_tensor.dim(): {video_tensor.dim()}")
+                print(f"  Expected: (B, C, T, H, W) = (1, 3, 8, 256, 256)")
+                
+                if video_tensor.dim() == 4:
+                    print("  ⚠️ Batch dimension missing - adding...")
+                    video_tensor = video_tensor.unsqueeze(0)
+                    print(f"  ✅ Modified: {video_tensor.shape}")
+                
                 with torch.no_grad():
                     output = model(video_tensor)
                 
-                print(f"GLC_Gaze inference successful!")
+                print(f"✅ GLC_Gaze inference successful!")
                 print(f"  Input: {video_tensor.shape}")
                 print(f"  Output: {output.shape}")
                 print(f"  Output type: {type(output)}")
@@ -263,13 +276,13 @@ class GLC_Baseline:
                 success_count += 1
                 
             except Exception as e:
-                print(f"Sample {i+1} test failed: {e}")
+                print(f"❌ Sample {i+1} test failed: {e}")
                 import traceback
                 traceback.print_exc()
                 continue
         
         print(f"\n=== Result ===")
-        print(f"Successful samples: {success_count}/{test_samples}")
+        print(f"Success samples: {success_count}/{test_samples}")
         
         return success_count > 0
     
@@ -300,24 +313,45 @@ class GLC_Baseline:
             dummy_target = torch.randn(batch_size, 2).to(self.device)  # (B, 2)
             
             output = model(video_tensor)
+            print(f"Model output shape: {output.shape}")
             
-            if len(output.shape) == 3:  # (B, T, 2)
-                dummy_target = dummy_target.unsqueeze(1).expand(-1, output.size(1), -1)
+            if len(output.shape) == 3:
+                if real_target.size(1) != output.size(1):
+                    print(f"⚠️ Frame number mismatch: target={real_target.size(1)}, output={output.size(1)}")
+                    if real_target.size(1) > output.size(1):
+                        real_target = real_target[:, :output.size(1), :]
+                    else:
+                        last_movement = real_target[:, -1:, :]
+                        padding_needed = output.size(1) - real_target.size(1)
+                        padding = last_movement.repeat(1, padding_needed, 1)
+                        real_target = torch.cat([real_target, padding], dim=1)
+                    print(f"✅ Adjusted target shape: {real_target.shape}")
+                        
+            elif len(output.shape) == 2:
+                real_target = real_target.mean(dim=1)  # (B, 2) - 평균 movement
+                print(f"✅ Single prediction target: {real_target.shape}")
             
-            loss = criterion(output, dummy_target)
+            else:
+                print(f"⚠️ Unexpected model output: {output.shape}")
+                return False
+            
+            loss = criterion(output, real_target)
             
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            print(f"GLC_Gaze training compatibility test successful!")
+            print(f"✅ GLC_Gaze training compatibility test successful!")
+            print(f"  Using real next_movement")
             print(f"  Loss: {loss.item():.6f}")
+            print(f"  Target movement example: {real_target[0, 0, :].cpu().numpy()} (first frame)")
+            print(f"  Predicted movement: {output[0, 0, :].detach().cpu().numpy()} (first frame)")
             print(f"  Gradient exists: {'Yes' if any(p.grad is not None for p in model.parameters()) else 'No'}")
             
             return True
             
         except Exception as e:
-            print(f"GLC_Gaze training compatibility test failed: {e}")
+            print(f"❌ GLC_Gaze training compatibility test failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -326,9 +360,11 @@ def main():
     data_dir = "/mas/robots/prg-egocom/EGOCOM"
     
     if not Path(data_dir).exists():
-        print(f"Data path not found: {data_dir}")
+        print(f"❌ Data path not found: {data_dir}")
         return
     
+    print("🎯 Goal: GLC_Gaze model + our data compatibility check")
+    print("=" * 60)
     
     tester = GLC_Baseline(data_dir)
     
@@ -338,13 +374,14 @@ def main():
         print("\nGLC_Gaze inference test successful!")
         
         training_success = tester.test_training_compatibility()
-            
+        
         if training_success:
             print("\nAll tests successful!")
+
         else:
             print("\nInference works but training has issues")
     else:
-        print("\nGLC_Gaze inference test failed")
+        print("\n❌ GLC_Gaze inference test failed")
         print("Model or data conversion issues need to be resolved")
 
 if __name__ == "__main__":
