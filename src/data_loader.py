@@ -31,8 +31,7 @@ class EgoComDataset(Dataset):
                     data = json.load(f)
                 num_frames = len(data.get("frames", []))
                 if num_frames > 0:
-                    for i in range(num_frames):
-                        self.samples.append((json_path, i))
+                    self.samples.append(json_path)  # Store video path instead of frame indices
             except Exception as e:
                 print(f"[EgoComDataset] Error loading JSON file: {json_path} - {e}")
                 continue
@@ -41,65 +40,76 @@ class EgoComDataset(Dataset):
         return len(self.samples)
     
     def __getitem__(self, idx):
-        json_path, frame_idx = self.samples[idx]
+        json_path = self.samples[idx]
         if json_path not in self.cache:
             with open(json_path, "r") as f:
                 self.cache[json_path] = json.load(f)
                 
         data = self.cache[json_path]
-        
-        frame_data = data["frames"][frame_idx]
-    
         metadata = data["metadata"]
+        frames = data["frames"]
         
         # Video path (already contains extension in metadata)
         video_path = metadata.get("video_path", "")
         
-        # Co-tracker's red circle (not sure to add this)
+        # Process all frames for this video
+        all_head_movements = []
+        all_next_movements = []
+        all_body_boxes = []
+        all_face_boxes = []
+        all_social_categories = []
+        all_speaker_ids = []
         
-        # Head movement (handle null values for first frame)
-        head_movement_data = frame_data.get("head_movement")
-        next_movement_data = frame_data.get("next_movement")
-        
-        if head_movement_data and head_movement_data is not None:
-            h_rad = head_movement_data.get("horizontal", {}).get("radians", 0.0) if head_movement_data.get("horizontal") else 0.0
-            v_rad = head_movement_data.get("vertical", {}).get("radians", 0.0) if head_movement_data.get("vertical") else 0.0
-            head_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
-        else:
-            head_movement = torch.zeros(2, dtype=torch.float32)
+        for frame_idx, frame_data in enumerate(frames):
+            # Head movement (handle null values for first frame)
+            head_movement_data = frame_data.get("head_movement")
+            next_movement_data = frame_data.get("next_movement")
             
-        if next_movement_data and next_movement_data is not None:
-            h_rad = next_movement_data.get("horizontal", {}).get("radians", 0.0) if next_movement_data.get("horizontal") else 0.0
-            v_rad = next_movement_data.get("vertical", {}).get("radians", 0.0) if next_movement_data.get("vertical") else 0.0
-            next_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
-        else:
-            next_movement = torch.zeros(2, dtype=torch.float32)
-        # Body and face detections
-        body_detections = frame_data.get("body_detection", []) or []
-        face_detections = frame_data.get("face_detection", []) or []
-        social_category = frame_data.get("social_category", "unknown")
-        speaker_id = frame_data.get("speaker_id", 0)
+            if head_movement_data and head_movement_data is not None:
+                h_rad = head_movement_data.get("horizontal", {}).get("radians", 0.0) if head_movement_data.get("horizontal") else 0.0
+                v_rad = head_movement_data.get("vertical", {}).get("radians", 0.0) if head_movement_data.get("vertical") else 0.0
+                head_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
+            else:
+                head_movement = torch.zeros(2, dtype=torch.float32)
+                
+            if next_movement_data and next_movement_data is not None:
+                h_rad = next_movement_data.get("horizontal", {}).get("radians", 0.0) if next_movement_data.get("horizontal") else 0.0
+                v_rad = next_movement_data.get("vertical", {}).get("radians", 0.0) if next_movement_data.get("vertical") else 0.0
+                next_movement = torch.tensor([h_rad, v_rad], dtype=torch.float32)
+            else:
+                next_movement = torch.zeros(2, dtype=torch.float32)
+                
+            # Body and face detections
+            body_detections = frame_data.get("body_detection", []) or []
+            face_detections = frame_data.get("face_detection", []) or []
+            social_category = frame_data.get("social_category", "unknown")
+            speaker_id = frame_data.get("speaker_id", 0)
+            
+            body_boxes = self._process_detections(body_detections)
+            face_boxes = self._process_detections(face_detections)
+            
+            # social_category (per-frame) with fallback from filename
+            if not social_category or social_category == "unknown":
+                social_category = self._infer_social_category_from_name(metadata)
+            
+            # Append to lists
+            all_head_movements.append(head_movement)
+            all_next_movements.append(next_movement)
+            all_body_boxes.append(body_boxes)
+            all_face_boxes.append(face_boxes)
+            all_social_categories.append(social_category)
+            all_speaker_ids.append(speaker_id)
         
-        
-        body_boxes = self._process_detections(body_detections)
-        face_boxes = self._process_detections(face_detections)
-        
-        # social_category (per-frame) with fallback from filename
-        if not social_category or social_category == "unknown":
-            social_category = self._infer_social_category_from_name(metadata)
-
-        # speaker_id (per-frame)
-        
-
+        # Stack tensors for all frames
         sample = {
             "video_path": video_path,
-            "frame_idx": frame_idx,
-            "head_movement": head_movement,
-            "next_movement": next_movement,
-            "body_boxes": body_boxes,
-            "face_boxes": face_boxes,
-            "social_category": social_category,
-            "speaker_id": speaker_id,
+            "num_frames": len(frames),
+            "head_movements": torch.stack(all_head_movements) if all_head_movements else torch.empty(0, 2),
+            "next_movements": torch.stack(all_next_movements) if all_next_movements else torch.empty(0, 2),
+            "body_boxes": torch.stack(all_body_boxes) if all_body_boxes else torch.empty(0, self.max_detections, 4),
+            "face_boxes": torch.stack(all_face_boxes) if all_face_boxes else torch.empty(0, self.max_detections, 4),
+            "social_categories": all_social_categories,
+            "speaker_ids": all_speaker_ids,
         }
         
         if self.transform:
@@ -160,5 +170,13 @@ if __name__ == "__main__":
         print(f"Loaded {len(dataset)} samples")
     
     for batch in data_loader:
-        print(batch)
+        print(f"Batch size: {len(batch['video_path'])}")
+        for i in range(len(batch['video_path'])):
+            print(f"Video {i}: {batch['video_path'][i]}")
+            print(f"  Number of frames: {batch['num_frames'][i]}")
+            print(f"  Head movements shape: {batch['head_movements'][i].shape}")
+            print(f"  Body boxes shape: {batch['body_boxes'][i].shape}")
+            print(f"  Face boxes shape: {batch['face_boxes'][i].shape}")
+            print(f"  Social categories: {len(batch['social_categories'][i])}")
+            print(f"  Speaker IDs: {len(batch['speaker_ids'][i])}")
         break

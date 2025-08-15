@@ -194,7 +194,7 @@ class GLC_Baseline:
         return video_tensor
     
     def test_model_with_real_data(self, use_cropped=True):
-        print(f"\n🚀 GLC_Gaze real data test started")
+        print(f"\nGLC_Gaze real data test started")
         
         cropped_dir = Path("/mas/robots/prg-egocom/glc/full_scale.gaze")
         if use_cropped and not cropped_dir.exists():
