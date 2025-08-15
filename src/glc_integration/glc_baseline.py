@@ -317,20 +317,30 @@ class GLC_Baseline:
             output = model([video_tensor])
             print(f"Model output shape: {output.shape}")
             
-            # Use dummy_target for compatibility testing (real_target doesn't exist here)
-            target = dummy_target
-            
-            if len(output.shape) == 3:
-                # Model outputs per-frame predictions, adjust target accordingly
-                target = target.unsqueeze(1).expand(-1, output.size(1), -1)  # (B, T, 2)
-                print(f"✅ Expanded target for sequence prediction: {target.shape}")
+            # Handle different output formats from GLC_Gaze model
+            if len(output.shape) == 5:
+                # Model outputs gaze heatmaps: (B, C, T, H, W) = (1, 1, 8, 64, 64)
+                # Create dummy target with same shape
+                target = torch.randn_like(output).to(self.device)
+                print(f"✅ Gaze heatmap prediction: output={output.shape}, target={target.shape}")
+                        
+            elif len(output.shape) == 4:
+                # Model outputs per-frame heatmaps: (B, T, H, W)
+                target = torch.randn_like(output).to(self.device)
+                print(f"✅ Per-frame heatmap prediction: output={output.shape}, target={target.shape}")
+                
+            elif len(output.shape) == 3:
+                # Model outputs per-frame coordinates: (B, T, 2)
+                target = dummy_target.unsqueeze(1).expand(-1, output.size(1), -1)  # (B, T, 2)
+                print(f"✅ Per-frame coordinate prediction: output={output.shape}, target={target.shape}")
                         
             elif len(output.shape) == 2:
-                # Model outputs single prediction, use dummy_target as is
-                print(f"✅ Single prediction target: {target.shape}")
+                # Model outputs single coordinates: (B, 2)
+                target = dummy_target
+                print(f"✅ Single coordinate prediction: output={output.shape}, target={target.shape}")
             
             else:
-                print(f"⚠️ Unexpected model output: {output.shape}")
+                print(f"⚠️ Unexpected model output shape: {output.shape}")
                 return False
             
             loss = criterion(output, target)
@@ -342,12 +352,19 @@ class GLC_Baseline:
             print(f"✅ GLC_Gaze training compatibility test successful!")
             print(f"  Using dummy target for compatibility testing")
             print(f"  Loss: {loss.item():.6f}")
-            if len(target.shape) == 3:
+            
+            # Show sample values based on output type
+            if len(output.shape) == 5:  # Gaze heatmaps (B, C, T, H, W)
+                print(f"  Target heatmap range: [{target.min().item():.4f}, {target.max().item():.4f}]")
+                print(f"  Predicted heatmap range: [{output.min().item():.4f}, {output.max().item():.4f}]")
+                print(f"  Sample center values: target={target[0, 0, 0, 32, 32].item():.4f}, pred={output[0, 0, 0, 32, 32].item():.4f}")
+            elif len(target.shape) == 3:  # Per-frame coordinates (B, T, 2)
                 print(f"  Target movement example: {target[0, 0, :].cpu().numpy()} (first frame)")
                 print(f"  Predicted movement: {output[0, 0, :].detach().cpu().numpy()} (first frame)")
-            else:
+            else:  # Single coordinates (B, 2)
                 print(f"  Target movement example: {target[0, :].cpu().numpy()}")
                 print(f"  Predicted movement: {output[0, :].detach().cpu().numpy()}")
+            
             print(f"  Gradient exists: {'Yes' if any(p.grad is not None for p in model.parameters()) else 'No'}")
             
             return True
