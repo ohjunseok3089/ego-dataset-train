@@ -20,9 +20,9 @@ try:
     import slowfast.utils.checkpoint as cu
     from slowfast.config.defaults import get_cfg
     from slowfast.models import build_model
-    print("✅ GLC module import successful!")
+    print("GLC module import successful!")
 except ImportError as e:
-    print(f"❌ GLC module import failed: {e}")
+    print(f"GLC module import failed: {e}")
     print(f"GLC path: {glc_path}")
     sys.exit(1)
 
@@ -89,7 +89,7 @@ class GLC_Baseline:
         cfg.RNG_SEED = 42
         
         self.cfg = cfg
-        print(f"✅ GLC_Gaze configuration created: {cfg.DATA.NUM_FRAMES} frames, {cfg.DATA.TRAIN_CROP_SIZE}x{cfg.DATA.TRAIN_CROP_SIZE}")
+        print(f"GLC_Gaze configuration created: {cfg.DATA.NUM_FRAMES} frames, {cfg.DATA.TRAIN_CROP_SIZE}x{cfg.DATA.TRAIN_CROP_SIZE}")
         return cfg
     
     def load_data(self):
@@ -107,13 +107,13 @@ class GLC_Baseline:
             if json_path.exists():
                 available_files.append(file_name)
             else:
-                print(f"⚠️ File not found: {file_name}")
+                print(f"File not found: {file_name}")
                 
         if not available_files:
-            print("❌ No available files")
+            print("No available files")
             return None
             
-        print(f"✅ {len(available_files)} files found: {available_files}")
+        print(f"{len(available_files)} files found: {available_files}")
         dataset = EgoComDataset(self.data_dir, file_names=available_files)
         
         return dataset
@@ -214,19 +214,18 @@ class GLC_Baseline:
         bottom = min(mu_y + (kernel_size - 1) // 2, h-1)
 
         if left >= right or top >= bottom:
-            pass  # Skip if invalid region
+            pass
         else:
-            # Generate 1D Gaussian kernel using OpenCV
-            kernel_1d = cv2.getGaussianKernel(ksize=kernel_size, sigma=sigma, ktype=cv2.CV_32F)
-            kernel_2d = kernel_1d * kernel_1d.T  # 2D kernel from outer product
             
-            # Calculate kernel region indices
+            kernel_1d = cv2.getGaussianKernel(ksize=kernel_size, sigma=sigma, ktype=cv2.CV_32F)
+            kernel_2d = kernel_1d * kernel_1d.T
+            
+
             k_left = (kernel_size - 1) // 2 - mu_x + left
             k_right = (kernel_size - 1) // 2 + right - mu_x
             k_top = (kernel_size - 1) // 2 - mu_y + top
             k_bottom = (kernel_size - 1) // 2 + bottom - mu_y
 
-            # Apply Gaussian kernel to heatmap region
             heatmap[top:bottom+1, left:right+1] = kernel_2d[k_top:k_bottom+1, k_left:k_right+1]
     
     def convert_next_movements_to_heatmaps(self, next_movements, num_frames=8):
@@ -297,14 +296,10 @@ class GLC_Baseline:
             
             if cropped_path.exists():
                 video_path = str(cropped_path)
-                print(f"📐 Using cropped version: {video_name}")
-            else:
-                print(f"⚠️ Cropped version not found, using original: {video_name}")
                 
-        # Load video using OpenCV
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            print(f"❌ Failed to open video: {video_path}")
+            print(f"Failed to open video: {video_path}")
             return None
         
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -312,7 +307,7 @@ class GLC_Baseline:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
-        print(f"📺 Video info: {width}x{height}, {total_frames} frames, {fps:.1f}fps")
+        print(f"Video info: {width}x{height}, {total_frames} frames, {fps:.1f}fps")
         
         frames = []
         target_frames = self.cfg.DATA.NUM_FRAMES  # 8 frames
@@ -323,11 +318,11 @@ class GLC_Baseline:
             if total_frames >= target_frames * sampling_rate:
                 # Standard sampling: indices [0, 8, 16, 24, 32, 40, 48, 56]
                 indices = list(range(0, target_frames * sampling_rate, sampling_rate))
-                print(f"📊 GLC_Gaze standard sampling: {target_frames} frames (indices: {indices})")
+                print(f"GLC_Gaze standard sampling: {target_frames} frames (indices: {indices})")
             else:
                 # Uniform sampling if not enough frames
                 indices = np.linspace(0, total_frames - 1, target_frames, dtype=int)
-                print(f"📊 Uniform sampling: {target_frames} frames (total {total_frames} frames)")
+                print(f"Uniform sampling: {target_frames} frames (total {total_frames} frames)")
                 
             for idx in indices:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
@@ -354,7 +349,7 @@ class GLC_Baseline:
         
         # Pad frames if necessary
         if len(frames) < target_frames:
-            print(f"⚠️ Frame shortage: {len(frames)}/{target_frames}, padding...")
+            print(f"Frame shortage: {len(frames)}/{target_frames}, padding...")
             while len(frames) < target_frames:
                 if frames:
                     frames.append(frames[-1])  # Repeat last frame
@@ -376,7 +371,7 @@ class GLC_Baseline:
         # Add batch dimension: (1, C, T, H, W)
         video_tensor = video_tensor.unsqueeze(0)
         
-        print(f"✅ Video conversion completed: {video_tensor.shape}")
+        print(f"Video conversion completed: {video_tensor.shape}")
         print(f"  GLC_Gaze format: (B=1, C=3, T={target_frames}, H={target_size}, W={target_size})")
         
         return video_tensor
@@ -388,7 +383,7 @@ class GLC_Baseline:
         # Check cropped directory
         cropped_dir = Path("/mas/robots/prg-egocom/glc/full_scale.gaze")
         if use_cropped and not cropped_dir.exists():
-            print(f"⚠️ Cropped directory not found: {cropped_dir}")
+            print(f"Cropped directory not found: {cropped_dir}")
             use_cropped = False
         elif use_cropped:
             cropped_files = list(cropped_dir.glob("*.MP4"))
@@ -399,7 +394,7 @@ class GLC_Baseline:
         if dataset is None:
             return False
             
-        print(f"✅ Dataset loaded: {len(dataset)} samples")
+        print(f"Dataset loaded: {len(dataset)} samples")
             
         # Load GLC_Gaze model
         print("\n=== GLC_Gaze Model Loading ===")
@@ -410,10 +405,10 @@ class GLC_Baseline:
             model.eval()
             
             total_params = sum(p.numel() for p in model.parameters())
-            print(f"✅ GLC_Gaze model loaded: {total_params:,} parameters")
+            print(f"GLC_Gaze model loaded: {total_params:,} parameters")
             
         except Exception as e:
-            print(f"❌ GLC_Gaze model load failed: {e}")
+            print(f"GLC_Gaze model load failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -436,7 +431,7 @@ class GLC_Baseline:
                 # Convert video to GLC format
                 video_tensor = self.convert_sample_to_glc_format(sample, use_crop=use_cropped)
                 if video_tensor is None:
-                    print(f"❌ Sample {i+1} video conversion failed")
+                    print(f"Sample {i+1} video conversion failed")
                     continue
                 
                 video_tensor = video_tensor.to(self.device)
@@ -449,16 +444,16 @@ class GLC_Baseline:
                 
                 # Ensure correct dimensions
                 if video_tensor.dim() == 4:
-                    print("  ⚠️ Batch dimension missing - adding...")
+                    print("  Batch dimension missing - adding...")
                     video_tensor = video_tensor.unsqueeze(0)
-                    print(f"  ✅ Fixed shape: {video_tensor.shape}")
+                    print(f"  Fixed shape: {video_tensor.shape}")
                 
                 # Run inference
                 with torch.no_grad():
                     # GLC_Gaze model expects input as a list containing the tensor
                     output = model([video_tensor])
                 
-                print(f"✅ GLC_Gaze inference successful!")
+                print(f"GLC_Gaze inference successful!")
                 print(f"  Input: {video_tensor.shape}")
                 print(f"  Output: {output.shape}")
                 print(f"  Output type: {type(output)}")
@@ -470,7 +465,7 @@ class GLC_Baseline:
                 success_count += 1
                 
             except Exception as e:
-                print(f"❌ Sample {i+1} test failed: {e}")
+                print(f"Sample {i+1} test failed: {e}")
                 import traceback
                 traceback.print_exc()
                 continue
@@ -510,8 +505,8 @@ class GLC_Baseline:
             
             # Extract real next_movements data
             next_movements = sample['next_movements']  # (num_frames, 2)
-            print(f"📊 Next movements shape: {next_movements.shape}")
-            print(f"📊 Sample movements (first 3 frames):")
+            print(f"Next movements shape: {next_movements.shape}")
+            print(f"Sample movements (first 3 frames):")
             for i in range(min(3, next_movements.shape[0])):
                 print(f"  Frame {i}: {next_movements[i].numpy()}")
             
@@ -519,18 +514,18 @@ class GLC_Baseline:
             target_heatmaps = self.convert_next_movements_to_heatmaps(next_movements, num_frames=8)
             target_heatmaps = target_heatmaps.to(self.device)
             
-            print(f"📊 Target heatmaps shape: {target_heatmaps.shape}")
-            print(f"📊 Target heatmap range: [{target_heatmaps.min().item():.4f}, {target_heatmaps.max().item():.4f}]")
+            print(f"Target heatmaps shape: {target_heatmaps.shape}")
+            print(f"Target heatmap range: [{target_heatmaps.min().item():.4f}, {target_heatmaps.max().item():.4f}]")
             
             # Forward pass
             output = model([video_tensor])
-            print(f"📊 Model output shape: {output.shape}")
+            print(f"Model output shape: {output.shape}")
             
             # Handle different output formats
             if output.shape == target_heatmaps.shape:
                 # Perfect match - use real targets
                 real_target = target_heatmaps
-                print(f"✅ Using real next_movement targets: {real_target.shape}")
+                print(f"Using real next_movement targets: {real_target.shape}")
                 
             elif len(output.shape) == 5:
                 # Model outputs heatmaps but different shape - adjust target
@@ -556,12 +551,12 @@ class GLC_Baseline:
                         align_corners=False
                     ).squeeze(1).view(*real_target.shape[:-2], *output.shape[-2:])
                 
-                print(f"✅ Adjusted real targets to match output: {real_target.shape}")
+                print(f"Adjusted real targets to match output: {real_target.shape}")
                 
             else:
                 # Fallback to dummy targets for compatibility
                 real_target = torch.randn_like(output).to(self.device)
-                print(f"⚠️ Using dummy targets due to shape mismatch: {real_target.shape}")
+                print(f"Using dummy targets due to shape mismatch: {real_target.shape}")
             
             # Calculate loss
             loss = criterion(output, real_target)
@@ -571,9 +566,9 @@ class GLC_Baseline:
             loss.backward()
             optimizer.step()
             
-            print(f"✅ GLC_Gaze training compatibility test successful!")
-            print(f"  ✅ Using real next_movement data as targets")
-            print(f"  ✅ GLC standard Gaussian heatmaps (kernel_size={cfg.DATA.GAUSSIAN_KERNEL})")
+            print(f"GLC_Gaze training compatibility test successful!")
+            print(f"  Using real next_movement data as targets")
+            print(f"  GLC standard Gaussian heatmaps (kernel_size={cfg.DATA.GAUSSIAN_KERNEL})")
             print(f"  Loss: {loss.item():.6f}")
             print(f"  Target type: Real movement-based heatmaps")
             print(f"  Target range: [{real_target.min().item():.4f}, {real_target.max().item():.4f}]")
@@ -590,7 +585,7 @@ class GLC_Baseline:
             return True
             
         except Exception as e:
-            print(f"❌ GLC_Gaze training compatibility test failed: {e}")
+            print(f"GLC_Gaze training compatibility test failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -600,7 +595,7 @@ def main():
     data_dir = "/mas/robots/prg-egocom/EGOCOM"
     
     if not Path(data_dir).exists():
-        print(f"❌ Data path not found: {data_dir}")
+        print(f"Data path not found: {data_dir}")
         return
     
     print("🎯 Goal: GLC_Gaze model + EGOCOM data compatibility with real targets")
@@ -613,23 +608,19 @@ def main():
     inference_success = tester.test_model_with_real_data(use_cropped=True)
     
     if inference_success:
-        print("\n🎉 GLC_Gaze inference test successful!")
-        print("✅ 8-frame sampling working")
-        print("✅ (B=1, C=3, T=8, H=256, W=256) input successful")
+        print("\nGLC_Gaze inference test successful")
+        print("8-frame sampling working")
+        print("(B=1, C=3, T=8, H=256, W=256) input successful")
         
         # Test training compatibility with real targets
         training_success = tester.test_training_compatibility()
         
         if training_success:
-            print("\n🎊 All tests successful!")
-            print("✅ GLC_Gaze model works with our data")
-            print("✅ Training possible with real next_movement targets")
-            print("✅ Next_movement → gaze heatmap conversion working")
+            print("\n🎊 All tests successful")
         else:
-            print("\n⚠️ Inference works but training has issues")
+            print("\nInference works but training has issues")
     else:
-        print("\n❌ GLC_Gaze inference test failed")
-        print("Model or data conversion issues need to be resolved")
+        print("\nGLC_Gaze inference test failed")
 
 if __name__ == "__main__":
     main()
