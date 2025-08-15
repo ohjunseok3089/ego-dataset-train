@@ -50,6 +50,29 @@ class GLC_Baseline:
         cfg.DATA.USE_OFFSET_SAMPLING = False
         cfg.DATA.GAUSSIAN_KERNEL = 19
         
+        # MVIT Configuration - Required for GLC_Gaze model
+        cfg.MVIT.ZERO_DECAY_POS_CLS = False
+        cfg.MVIT.SEP_POS_EMBED = True
+        cfg.MVIT.DEPTH = 16
+        cfg.MVIT.NUM_HEADS = 1
+        cfg.MVIT.EMBED_DIM = 96
+        cfg.MVIT.PATCH_KERNEL = (3, 7, 7)
+        cfg.MVIT.PATCH_STRIDE = (2, 4, 4)
+        cfg.MVIT.PATCH_PADDING = (1, 3, 3)
+        cfg.MVIT.MLP_RATIO = 4.0
+        cfg.MVIT.QKV_BIAS = True
+        cfg.MVIT.DROPPATH_RATE = 0.2
+        cfg.MVIT.NORM = "layernorm"
+        cfg.MVIT.MODE = "conv"
+        cfg.MVIT.CLS_EMBED_ON = False
+        cfg.MVIT.GLOBAL_EMBED_ON = True
+        cfg.MVIT.DIM_MUL = [[1, 2.0], [3, 2.0], [14, 2.0]]
+        cfg.MVIT.HEAD_MUL = [[1, 2.0], [3, 2.0], [14, 2.0]]
+        cfg.MVIT.POOL_KVQ_KERNEL = [3, 3, 3]
+        cfg.MVIT.POOL_KV_STRIDE_ADAPTIVE = [1, 8, 8]
+        cfg.MVIT.POOL_Q_STRIDE = [[1, 1, 2, 2], [3, 1, 2, 2], [14, 1, 2, 2]]
+        cfg.MVIT.DROPOUT_RATE = 0.0
+        
         cfg.TRAIN.ENABLE = True
         cfg.TRAIN.LR = 1e-4
         cfg.TRAIN.WEIGHT_DECAY = 1e-5
@@ -60,7 +83,6 @@ class GLC_Baseline:
         cfg.RNG_SEED = 42
         
         self.cfg = cfg
-        print(f"✅ GLC_Gaze 설정 완료: {cfg.DATA.NUM_FRAMES}프레임, {cfg.DATA.TRAIN_CROP_SIZE}x{cfg.DATA.TRAIN_CROP_SIZE}")
         return cfg
     
     def load_data(self):
