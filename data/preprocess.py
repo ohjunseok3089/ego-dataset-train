@@ -101,14 +101,24 @@ def get_ego4d_frame_label(data_path, save_path):
     all_trimmed_num = 0
     all_untracked_num = 0
     os.makedirs(save_path, exist_ok=True)
-    for ann_file in os.listdir(os.path.join(data_path, 'gaze')):
-        if ann_file == 'manifest.csv' or ann_file == 'manifest.ver':
+    
+    # Get list of available MP4 files in full_scale.gaze
+    gaze_video_path = os.path.join(data_path, 'full_scale.gaze')
+    available_videos = [f for f in os.listdir(gaze_video_path) if f.endswith('.mp4')]
+    
+    for video_file in available_videos:
+        vid = video_file.split('.')[0]
+        gaze_csv_file = os.path.join(data_path, 'gaze', f'{vid}.csv')
+        
+        # Check if corresponding gaze CSV file exists
+        if not os.path.exists(gaze_csv_file):
+            print(f"Warning: No gaze CSV file found for {vid}, skipping...")
             continue
-        vid = ann_file.split('.')[0]
-        with open(os.path.join(data_path, 'gaze', ann_file), 'r') as f:
+            
+        with open(gaze_csv_file, 'r') as f:
             lines = [line for i, line in enumerate(csv.reader(f)) if i > 0]
 
-        container = av.open(os.path.join(data_path, 'full_scale.gaze', f'{vid}.mp4'))
+        container = av.open(os.path.join(gaze_video_path, video_file))
         fps = float(container.streams.video[0].average_rate)
         frames_length = container.streams.video[0].frames
         duration = container.streams.video[0].duration
