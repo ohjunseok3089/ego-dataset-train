@@ -308,10 +308,10 @@ def main():
     # Uncomment this code block to run preprocessing on Ego4D dataset ------------------------------------------------
     path_to_ego4d = '/mas/robots/prg-ego4d/raw/v2'  # change this to your own path
     
-    source_path = f'{path_to_ego4d}/full_scale.gaze'
-    save_path = f'{path_to_ego4d}/clips.gaze'
-    untracked_csv = f'ego4d_gaze_untracked.csv'
-    trim_ego4d_videos(source_path=source_path, save_path=save_path, untrack_csv=untracked_csv)
+    # source_path = f'{path_to_ego4d}/full_scale.gaze'
+    # save_path = f'{path_to_ego4d}/clips.gaze'
+    # untracked_csv = f'ego4d_gaze_untracked.csv'
+    # trim_ego4d_videos(source_path=source_path, save_path=save_path, untrack_csv=untracked_csv)
     
     data_path = path_to_ego4d
     save_path = f'{path_to_ego4d}/gaze_frame_label'
