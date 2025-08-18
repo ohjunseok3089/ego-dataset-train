@@ -11,7 +11,7 @@ sys.path.append(str(csts_path))
 
 import torch
 import yaml
-from src.data_loader import Ego4dDataset
+# from src.data_loader import Ego4dDataset
 
 from slowfast.config.defaults import get_cfg, assert_and_infer_cfg
 from slowfast.utils.misc import launch_job
