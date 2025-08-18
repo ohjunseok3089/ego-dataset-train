@@ -266,8 +266,13 @@ def extract_audio(data_path, save_path, dataset):
                                   os.path.join(save_path, vid, clip.replace('mp4', 'wav'))]
                 subprocess.call(ffmpeg_command)
 
-        command = f'cp {os.path.join(os.path.dirname(data_path), "missing_audio/*")} {save_path}'
-        subprocess.call(command)
+        # Try to copy missing audio files if the directory exists
+        missing_audio_path = os.path.join(os.path.dirname(data_path), "missing_audio")
+        if os.path.exists(missing_audio_path):
+            command = f'cp {os.path.join(missing_audio_path, "*")} {save_path}'
+            subprocess.call(command)
+        else:
+            print(f"Warning: missing_audio directory not found at {missing_audio_path}, skipping...")
 
     elif dataset == 'Aria':
         for vid in os.listdir(data_path):
@@ -323,13 +328,13 @@ def main():
     # untracked_csv = f'ego4d_gaze_untracked.csv'
     # trim_ego4d_videos(source_path=source_path, save_path=save_path, untrack_csv=untracked_csv)
     
-    data_path = path_to_ego4d
-    save_path = f'{path_to_ego4d}/gaze_frame_label'
-    get_ego4d_frame_label(data_path=data_path, save_path=save_path)
+    # data_path = path_to_ego4d
+    # save_path = f'{path_to_ego4d}/gaze_frame_label'
+    # get_ego4d_frame_label(data_path=data_path, save_path=save_path)
     
-    data_path = f'{path_to_ego4d}/clips.gaze'
-    save_path = f'{path_to_ego4d}/clips.audio_24kHz'
-    extract_audio(data_path=data_path, save_path=save_path, dataset='Ego4D')
+    # data_path = f'{path_to_ego4d}/clips.gaze'
+    # save_path = f'{path_to_ego4d}/clips.audio_24kHz'
+    # extract_audio(data_path=data_path, save_path=save_path, dataset='Ego4D')
     
     data_path = f'{path_to_ego4d}/clips.audio_24kHz'
     save_path = f'{path_to_ego4d}/clips.audio_24kHz_stft'
