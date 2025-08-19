@@ -183,6 +183,21 @@ class KLDiv_plus_FLoss(nn.Module):
         return kldiv + self.alpha * floss
 
 
+class HeadOrientationLoss(nn.Module): # PRG added, for head orientation prediction. KLDiv is for probability distribution. mse_loss is for vector regression.
+    # TODO: Not final, just trying out. Junseok
+    def __init__(self, reduction="mean"):
+        super(HeadOrientationLoss, self).__init__()
+        self.mse_loss = nn.MSELoss(reduction=reduction)
+    
+    def forward(self, pred, target):
+        """
+        Args:
+            pred: (B, T, 2) predicted head orientation vectors
+            target: (B, T, 2) ground truth head orientation vectors (centered coordinates)
+        """
+        return self.mse_loss(pred, target)
+
+
 
 _LOSSES = {
     "cross_entropy": nn.CrossEntropyLoss,
@@ -193,6 +208,7 @@ _LOSSES = {
     "floss": FLoss,
     "egonce": EgoNCE,
     "kldiv+floss": KLDiv_plus_FLoss,
+    "head_orientation": HeadOrientationLoss, # PRG added, for head orientation prediction. KLDiv is for probability distribution. mse_loss is for vector regression.
 }
 
 

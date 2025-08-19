@@ -303,6 +303,7 @@ class CSTS(nn.Module):
             self.classifier = nn.Conv3d(96, 1, kernel_size=1)
         elif self.mode == 'head_orientation':
             # TODO: Instead of using CNN, we should transform the feature to a 2D vector and then use a linear layer
+            # But, we have to decide how to handle the range of the output.
             self.orientation_head = nn.Linear(in_features=96, out_features=2)
 
         # =============================== Initialization ===============================

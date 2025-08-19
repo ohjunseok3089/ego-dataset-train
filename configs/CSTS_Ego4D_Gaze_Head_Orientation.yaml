@@ -58,9 +58,9 @@ SOLVER:
   OPTIMIZING_METHOD: adamw
 MODEL:
   ARCH: mvit
-  MODE: head_orientation
+  MODE: head_orientation # PRG Added
   MODEL_NAME: CSTS
-  LOSS_FUNC: kldiv
+  LOSS_FUNC: head_orientation # PRG Added
   DROPOUT_RATE: 0.5
   LOSS_ALPHA: 0.05  # loss weights
 TEST:

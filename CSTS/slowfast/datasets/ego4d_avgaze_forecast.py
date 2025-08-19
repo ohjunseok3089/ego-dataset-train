@@ -326,12 +326,32 @@ class Ego4d_av_gaze_forecast(torch.utils.data.Dataset):
                     label_hm[i, :, :] = label_hm[i, :, :] / d_sum
 
             label_hm = torch.as_tensor(label_hm).float()
+            if self.cfg.MODEL.MODE == 'head_orientation':
+                # PRG Added: Convert heatmap to x,y coordinates for head orientation.
+                # Find the peak (highest value) in each heatmap and convert to coordinates
+                head_orientation_coords = []
+                for i in range(label_hm.shape[0]):  # for each frame
+                    hm = label_hm[i]  # (H, W) heatmap
+                    # Find the position of maximum value
+                    flat_idx = torch.argmax(hm.flatten())
+                    y_idx = flat_idx // hm.shape[1]  # row index
+                    x_idx = flat_idx % hm.shape[1]   # column index
+                    
+                    # Convert indices to normalized coordinates [0, 1]
+                    x_coord = float(x_idx) / (hm.shape[1] - 1)  # normalize to [0, 1]
+                    y_coord = float(y_idx) / (hm.shape[0] - 1)  # normalize to [0, 1]
+                    
+                    head_orientation_coords.append([x_coord, y_coord])
+                
+                label_to_return = torch.tensor(head_orientation_coords, dtype=torch.float32)
+            else:
+                label_to_return = label_hm
 
             if target_frames is not None:  # if target_frames are defined, return target frames for visualization
-                return frames, audio_frames, label, label_hm, target_frames, index, \
+                return frames, audio_frames, label, label_to_return, target_frames, index, \
                     {'path': video_path, 'index': frames_global_idx, 'labels_index': labels_global_index}
             else:
-                return frames, audio_frames, label, label_hm, index, \
+                return frames, audio_frames, label, label_to_return, index, \
                     {'path': video_path, 'index': frames_global_idx, 'labels_index': labels_global_index}
         else:
             raise RuntimeError("Failed to fetch video after {} retries.".format(self._num_retries))
