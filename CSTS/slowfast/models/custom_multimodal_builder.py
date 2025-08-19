@@ -22,8 +22,9 @@ class CSTS(nn.Module):
     Multiscale Vision Transformers with Audio-Visual Fusion
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, mode='gaze_target'):
         super(CSTS, self).__init__()
+        self.mode = mode
         # ============================= Get parameters =============================
         assert cfg.DATA.TRAIN_CROP_SIZE == cfg.DATA.TEST_CROP_SIZE
         self.cfg = cfg
@@ -298,7 +299,11 @@ class CSTS(nn.Module):
 
             setattr(self, f'decode_block{i+1}', decoder_block)
 
-        self.classifier = nn.Conv3d(96, 1, kernel_size=1)
+        if self.mode == 'gaze_target':
+            self.classifier = nn.Conv3d(96, 1, kernel_size=1)
+        elif self.mode == 'head_orientation':
+            # TODO: Instead of using CNN, we should transform the feature to a 2D vector and then use a linear layer
+            self.orientation_head = nn.Linear(in_features=96, out_features=2)
 
         # =============================== Initialization ===============================
         if self.sep_pos_embed:
@@ -478,7 +483,12 @@ class CSTS(nn.Module):
         en_feat = en_feat.reshape(en_feat.size(0), *thw, en_feat.size(2)).permute(0, 4, 1, 2, 3)
         feat = feat + F.interpolate(en_feat, size=(thw[0]*2, thw[1], thw[2]), mode='trilinear')
 
-        feat = self.classifier(feat)
+        if self.mode == 'gaze_target':
+            feat = self.classifier(feat)
+        elif self.mode == 'head_orientation':
+            feat = feat.mean(dim=[-1, -2]) # -1 is W, -2 is H. Average out the spatial dimensions. No need for  spatial pooling.
+            feat = feat.permute(0, 2, 1) # (B, 8, 96), follow the same format as the gaze target
+            feat = self.orientation_head(feat)
 
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 
 """Add custom configs and default values"""
 from fvcore.common.config import CfgNode
@@ -23,3 +22,5 @@ def add_custom_config(_C):
 
     # If True, return spatial attention weights of audio signals from the spatial fusion module
     _C.MVIT.SPATIAL_AUDIO_ATTN = False
+
+    
