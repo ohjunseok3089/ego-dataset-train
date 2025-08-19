@@ -332,9 +332,9 @@ def main():
     # save_path = f'{path_to_ego4d}/gaze_frame_label'
     # get_ego4d_frame_label(data_path=data_path, save_path=save_path)
     
-    # data_path = f'{path_to_ego4d}/clips.gaze'
-    # save_path = f'{path_to_ego4d}/clips.audio_24kHz'
-    # extract_audio(data_path=data_path, save_path=save_path, dataset='Ego4D')
+    data_path = f'{path_to_ego4d}/clips.gaze'
+    save_path = f'{path_to_ego4d}/clips.audio_24kHz'
+    extract_audio(data_path=data_path, save_path=save_path, dataset='Ego4D')
     
     data_path = f'{path_to_ego4d}/clips.audio_24kHz'
     save_path = f'{path_to_ego4d}/clips.audio_24kHz_stft'
