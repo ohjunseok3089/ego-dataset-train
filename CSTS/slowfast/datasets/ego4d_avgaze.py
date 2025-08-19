@@ -133,7 +133,7 @@ class Ego4d_av_gaze(torch.utils.data.Dataset):
         assert (len(self._path_to_videos) > 0), "Failed to load Ego4d_av_gaze split {} from {}".format(self.mode, path_to_file)
 
         for video_path in self._path_to_videos:
-            self._path_to_audios.append(video_path.replace('clips.gaze', 'clips.gaze.audio_stft').replace('.mp4', '.npy'))
+            self._path_to_audios.append(video_path.replace('clips.gaze', 'clips.audio_24kHz_stft').replace('.mp4', '.npy')) # PRG modified, use audio_24kHz_stft instead of audio_stft
 
         # Read gaze label
         logger.info('Loading Gaze Labels...')
@@ -303,7 +303,7 @@ class Ego4d_av_gaze(torch.utils.data.Dataset):
                 frames = frames[frames_idx, ...]
 
                 # Load audio signal
-                audio = np.load(video_path.replace('clips.gaze', 'clips.gaze.audio_stft').replace('.mp4', '.npy'))
+                audio = np.load(video_path.replace('clips.gaze', 'clips.audio_24kHz_stft').replace('.mp4', '.npy'))
                 audio_idx = (frames_idx / frame_length) * audio.shape[1]
                 audio_idx = torch.round(audio_idx).int()
                 audio_idx = torch.clip(audio_idx, 128, audio.shape[1]-1-128)
