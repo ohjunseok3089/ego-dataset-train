@@ -94,7 +94,10 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
         test_meter.iter_toc()
 
         # Update and log stats.
-        test_meter.update_stats(f1, recall, precision, preds=preds_rescale, labels_hm=labels_hm, labels=labels)  # If running  on CPU (cfg.NUM_GPUS == 0), use 1 to represent 1 CPU.
+        if cfg.MODEL.MODE == 'gaze_target':
+            test_meter.update_stats(f1, recall, precision, preds=preds_rescale, labels_hm=labels_hm, labels=labels)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            test_meter.update_stats(f1, recall, precision, preds=preds, labels_hm=labels_hm, labels=labels)
         test_meter.log_iter_stats(cur_iter)
 
         test_meter.iter_tic()
