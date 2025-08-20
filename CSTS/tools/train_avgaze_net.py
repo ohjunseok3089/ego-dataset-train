@@ -81,7 +81,9 @@ def train_epoch(
                 preds, v_embed, a_embed = preds
                 if cfg.NUM_GPUS > 1:
                     v_embed, a_embed = du.all_gather_with_grad([v_embed, a_embed])
-                preds = frame_softmax(preds, temperature=2)
+                # Apply softmax only for heatmap outputs (gaze_target mode)
+                if cfg.MODEL.MODE == 'gaze_target':
+                    preds = frame_softmax(preds, temperature=2)
                 similarity = sim_matrix(v_embed, a_embed)
                 kldiv_loss = kldiv_fun(preds, labels_hm)
                 egonce_loss = egonce_fun(similarity)
@@ -187,7 +189,11 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer=None):
         val_meter.data_toc()
 
         preds = model(inputs, audio_frames)
-        preds = frame_softmax(preds, temperature=2)  # KLDiv
+        
+        # Apply softmax only for heatmap outputs (gaze_target mode)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds = frame_softmax(preds, temperature=2)  # KLDiv
+        # For head_orientation mode, preds are already angular coordinates
 
         # Gather all the predictions across all the devices to perform ensemble.
         if cfg.NUM_GPUS > 1:

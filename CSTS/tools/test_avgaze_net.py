@@ -52,7 +52,10 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
         # Perform the forward pass.
         preds = model(inputs, audio_frames)
 
-        preds = frame_softmax(preds, temperature=2)  # KLDiv
+        # Apply softmax only for heatmap outputs (gaze_target mode)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds = frame_softmax(preds, temperature=2)  # KLDiv
+        # For head_orientation mode, preds are already angular coordinates (B, T, 2)
 
         # Gather all the predictions across all the devices to perform ensemble.
         if cfg.NUM_GPUS > 1:
