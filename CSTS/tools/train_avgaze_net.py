@@ -124,10 +124,14 @@ def train_epoch(
         loss = loss.item()
 
         # Compute the metrics.
-        preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
-        preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
-        preds_rescale = preds_rescale.view(preds.size())
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
+            preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
+            preds_rescale = preds_rescale.view(preds.size())
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            # Head orientation uses adaptive angular F1 metrics
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TRAIN.DATASET)
 
         # Update and log stats.
         train_meter.update_stats(f1, recall, precision, threshold, loss, lr, mb_size=inputs[0].size(0) * max(cfg.NUM_GPUS, 1))  # If running  on CPU (cfg.NUM_GPUS == 0), use 1 to represent 1 CPU.
@@ -200,10 +204,14 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer=None):
             preds, labels_hm, labels = du.all_gather([preds, labels_hm, labels])
 
         # Compute the metrics.
-        preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
-        preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
-        preds_rescale = preds_rescale.view(preds.size())
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
+            preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
+            preds_rescale = preds_rescale.view(preds.size())
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            # Head orientation uses adaptive angular F1 metrics
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TRAIN.DATASET)
 
         val_meter.iter_toc()
         # Update and log stats.

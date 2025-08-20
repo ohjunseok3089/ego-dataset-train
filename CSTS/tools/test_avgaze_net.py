@@ -68,10 +68,17 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
             labels_hm = labels_hm.cpu()
             video_idx = video_idx.cpu()
 
-        preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
-        preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
-        preds_rescale = preds_rescale.view(preds.size())
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TEST.DATASET)
+        # PRG Added.
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
+            preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
+            preds_rescale = preds_rescale.view(preds.size())
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TEST.DATASET)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            # Head orientation uses adaptive angular F1 metrics
+            # preds: (B, T, 2) - predicted angular coordinates in radians
+            # labels_hm: (B, T, 2) - target angular coordinates in radians (from dataset conversion)
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TEST.DATASET)
 
         # Visualization
         # gaze forecast

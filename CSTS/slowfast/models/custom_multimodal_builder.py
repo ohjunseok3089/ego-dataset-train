@@ -299,16 +299,20 @@ class CSTS(nn.Module):
 
             setattr(self, f'decode_block{i+1}', decoder_block)
 
-        # Use existing classifier architecture for both modes
-        self.classifier = nn.Conv3d(96, 1, kernel_size=1)
-        
-        if self.mode == 'head_orientation':
-            # Ego4D FOV parameters for angular output scaling
-            horizontal_fov = self.cfg.DATA.HORIZONTAL_FOV  # degrees
-            vertical_fov = self.cfg.DATA.VERTICAL_FOV  # degrees
+        if self.mode == 'gaze_target':
+            # Original gaze target prediction with heatmap
+            self.classifier = nn.Conv3d(96, 1, kernel_size=1)
+        elif self.mode == 'head_orientation':
+            # Separate linear layer for head orientation prediction
+            self.orientation_head = nn.Sequential(
+                nn.Linear(96, 2),     # (B, T, 96) -> (B, T, 2)
+                nn.Tanh()            # Bound output to [-1, 1]
+            )
             
-            # Calculate maximum angles in radians 
-            self.max_h_angle = math.radians(horizontal_fov / 2.0)  
+            # FOV parameters for scaling
+            horizontal_fov = self.cfg.DATA.HORIZONTAL_FOV  # degrees  
+            vertical_fov = self.cfg.DATA.VERTICAL_FOV      # degrees
+            self.max_h_angle = math.radians(horizontal_fov / 2.0)
             self.max_v_angle = math.radians(vertical_fov / 2.0)
 
         # =============================== Initialization ===============================
@@ -489,43 +493,19 @@ class CSTS(nn.Module):
         en_feat = en_feat.reshape(en_feat.size(0), *thw, en_feat.size(2)).permute(0, 4, 1, 2, 3)
         feat = feat + F.interpolate(en_feat, size=(thw[0]*2, thw[1], thw[2]), mode='trilinear')
 
-        # Use same classifier for both modes - maximum reuse of existing architecture
-        feat = self.classifier(feat)  # (B, 1, T, H, W) for both modes
-        
-        if self.mode == 'head_orientation':
-            # Convert heatmap to angular coordinates using existing classifier output
-            B, _, T, H, W = feat.shape
-            feat = feat.squeeze(1)  # (B, T, H, W)
+        # Separate final layers based on mode (PI's requirement)
+        if self.mode == 'gaze_target':
+            # Original heatmap prediction
+            feat = self.classifier(feat)  # (B, 1, T, H, W)
+        elif self.mode == 'head_orientation':
+            # Direct angular coordinate prediction with separate linear layer
+            feat = feat.mean(dim=[-1, -2])  # Average spatial dimensions: (B, 96, T, H, W) -> (B, 96, T)
+            feat = feat.permute(0, 2, 1)    # (B, T, 96), follow the same format as the gaze target
+            feat = self.orientation_head(feat)  # (B, T, 2) in range [-1, 1]
             
-            # Find peak positions and convert to angular coordinates
-            head_orientations = []
-            for t in range(T):
-                # Get heatmap for this time step: (B, H, W)
-                hm = feat[:, t, :, :]  # (B, H, W)
-                
-                # Find argmax positions for each batch
-                batch_angles = []
-                for b in range(B):
-                    flat_idx = torch.argmax(hm[b].flatten())
-                    y_idx = flat_idx // W
-                    x_idx = flat_idx % W
-                    
-                    # Convert to normalized coordinates [-1, 1]
-                    x_norm = (2.0 * x_idx.float() / (W - 1)) - 1.0
-                    y_norm = (2.0 * y_idx.float() / (H - 1)) - 1.0
-                    
-                    # Convert to angular displacement
-                    angle_x = x_norm * self.max_h_angle
-                    angle_y = y_norm * self.max_v_angle
-                    
-                    batch_angles.append([angle_x, angle_y])
-                
-                head_orientations.append(batch_angles)
-            
-            # Convert to tensor: (B, T, 2)
-            feat = torch.stack([torch.stack([torch.tensor(angles, device=feat.device) 
-                                           for angles in time_step]) 
-                              for time_step in head_orientations], dim=1)  
+            # Scale by FOV-derived maximum angles  
+            feat[:, :, 0] = feat[:, :, 0] * self.max_h_angle  # horizontal angles
+            feat[:, :, 1] = feat[:, :, 1] * self.max_v_angle  # vertical angles  
 
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat
