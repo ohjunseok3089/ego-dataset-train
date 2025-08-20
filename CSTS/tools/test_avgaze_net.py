@@ -143,7 +143,8 @@ def test(cfg):
         num_clips=cfg.TEST.NUM_ENSEMBLE_VIEWS * cfg.TEST.NUM_SPATIAL_CROPS,
         num_cls=cfg.MODEL.NUM_CLASSES,
         overall_iters=len(test_loader),
-        dataset=cfg.TEST.DATASET
+        dataset=cfg.TEST.DATASET,
+        mode=cfg.MODEL.MODE  # PRG Added: pass mode for metric selection
     )
 
     writer = None  # Forbid use tensorboard for test
