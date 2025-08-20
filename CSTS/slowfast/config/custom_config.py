@@ -7,6 +7,10 @@ from fvcore.common.config import CfgNode
 def add_custom_config(_C):
     # Kernel size of gaze label
     _C.DATA.GAUSSIAN_KERNEL = 19
+    
+    # Field of view parameters for head orientation angular mapping
+    _C.DATA.HORIZONTAL_FOV = 110.0  # Ego4D horizontal field of view in degrees
+    _C.DATA.VERTICAL_FOV = 110.0    # Ego4D vertical field of view in degrees
 
     # ---------------------------------------------------------------------------- #
     # Audio-visual gaze anticipation/estimation options

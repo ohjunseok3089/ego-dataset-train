@@ -302,6 +302,7 @@ class CSTS(nn.Module):
         if self.mode == 'gaze_target':
             self.classifier = nn.Conv3d(96, 1, kernel_size=1)
         elif self.mode == 'head_orientation':
+            # TODO: This is not final, just trying out. Junseok. PRG Added.
             # Ego4D FOV parameters for angular output scaling
             horizontal_fov = self.cfg.DATA.HORIZONTAL_FOV  # degrees
             vertical_fov = self.cfg.DATA.VERTICAL_FOV  # degrees
