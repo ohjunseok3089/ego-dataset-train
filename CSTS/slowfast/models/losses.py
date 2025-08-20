@@ -183,19 +183,29 @@ class KLDiv_plus_FLoss(nn.Module):
         return kldiv + self.alpha * floss
 
 
-class HeadOrientationLoss(nn.Module): # PRG added, for head orientation prediction. KLDiv is for probability distribution. mse_loss is for vector regression.
-    # TODO: Not final, just trying out. Junseok
-    def __init__(self, reduction="mean"):
+class HeadOrientationLoss(nn.Module):
+    """
+    Loss function for head orientation prediction using angular coordinates.
+    Handles conversion from heatmap coordinates to angular displacements.
+    PRG Added. Using MSE loss for vector regression, since KLDiv is for probability distribution.
+    TODO: This is not final, just trying out. Junseok
+    """
+    def __init__(self, reduction="mean", scale_factor=100.0):
         super(HeadOrientationLoss, self).__init__()
         self.mse_loss = nn.MSELoss(reduction=reduction)
+        self.scale_factor = scale_factor  # Scale up small angular values for better gradients
     
     def forward(self, pred, target):
         """
         Args:
-            pred: (B, T, 2) predicted head orientation vectors
-            target: (B, T, 2) ground truth head orientation vectors (centered coordinates)
+            pred: (B, T, 2) predicted angles in radians
+            target: (B, T, 2) ground truth angles in radians 
         """
-        return self.mse_loss(pred, target)
+        # Scale both predictions and targets for better gradient flow
+        # This helps with training stability when dealing with small angular values
+        scaled_pred = pred * self.scale_factor
+        scaled_target = target * self.scale_factor
+        return self.mse_loss(scaled_pred, scaled_target)
 
 
 

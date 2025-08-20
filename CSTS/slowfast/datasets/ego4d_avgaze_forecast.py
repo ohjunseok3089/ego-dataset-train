@@ -3,6 +3,7 @@
 
 import os
 import random
+import math
 
 import av
 import cv2
@@ -327,9 +328,16 @@ class Ego4d_av_gaze_forecast(torch.utils.data.Dataset):
 
             label_hm = torch.as_tensor(label_hm).float()
             if self.cfg.MODEL.MODE == 'head_orientation':
-                # PRG Added: Convert heatmap to x,y coordinates for head orientation.
-                # Find the peak (highest value) in each heatmap and convert to coordinates
-                head_orientation_coords = []
+                # PRG Added: Convert heatmap to angular coordinates for head orientation.
+                # Using Ego4D FOV = 110 degrees for proper angular mapping
+                horizontal_fov = self.cfg.DATA.get('HORIZONTAL_FOV', 110.0)  # degrees
+                vertical_fov = self.cfg.DATA.get('VERTICAL_FOV', 110.0)      # degrees
+                
+                # Convert to radians and get half-angles (max displacement from center)
+                max_h_angle = math.radians(horizontal_fov / 2.0)  
+                max_v_angle = math.radians(vertical_fov / 2.0)   
+                
+                head_orientation_angles = []
                 for i in range(label_hm.shape[0]):  # for each frame
                     hm = label_hm[i]  # (H, W) heatmap
                     # Find the position of maximum value
@@ -337,13 +345,18 @@ class Ego4d_av_gaze_forecast(torch.utils.data.Dataset):
                     y_idx = flat_idx // hm.shape[1]  # row index
                     x_idx = flat_idx % hm.shape[1]   # column index
                     
-                    # Convert indices to normalized coordinates [0, 1]
-                    x_coord = float(x_idx) / (hm.shape[1] - 1)  # normalize to [0, 1]
-                    y_coord = float(y_idx) / (hm.shape[0] - 1)  # normalize to [0, 1]
+                    # Convert pixel coordinates to normalized coordinates [-1, 1]
+                    # Center of image corresponds to 0 angular displacement
+                    x_norm = (2.0 * x_idx / (hm.shape[1] - 1)) - 1.0  # [-1, 1]
+                    y_norm = (2.0 * y_idx / (hm.shape[0] - 1)) - 1.0  # [-1, 1]
                     
-                    head_orientation_coords.append([x_coord, y_coord])
+                    # Map to angular displacement using Ego4D FOV
+                    angle_x = x_norm * max_h_angle  # horizontal angle in radians
+                    angle_y = y_norm * max_v_angle  # vertical angle in radians
+                    
+                    head_orientation_angles.append([angle_x, angle_y])
                 
-                label_to_return = torch.tensor(head_orientation_coords, dtype=torch.float32)
+                label_to_return = torch.tensor(head_orientation_angles, dtype=torch.float32)
             else:
                 label_to_return = label_hm
 

@@ -302,9 +302,18 @@ class CSTS(nn.Module):
         if self.mode == 'gaze_target':
             self.classifier = nn.Conv3d(96, 1, kernel_size=1)
         elif self.mode == 'head_orientation':
-            # TODO: Instead of using CNN, we should transform the feature to a 2D vector and then use a linear layer
-            # But, we have to decide how to handle the range of the output.
-            self.orientation_head = nn.Linear(in_features=96, out_features=2)
+            # Ego4D FOV parameters for angular output scaling
+            horizontal_fov = self.cfg.DATA.HORIZONTAL_FOV  # degrees
+            vertical_fov = self.cfg.DATA.VERTICAL_FOV  # degrees
+            
+            # Calculate maximum angles in radians 
+            self.max_h_angle = math.radians(horizontal_fov / 2.0)  
+            self.max_v_angle = math.radians(vertical_fov / 2.0)    
+            
+            self.orientation_head = nn.Sequential(
+                nn.Linear(in_features=96, out_features=2),
+                nn.Tanh()  # Output range [-1, 1]
+            )
 
         # =============================== Initialization ===============================
         if self.sep_pos_embed:
@@ -487,9 +496,13 @@ class CSTS(nn.Module):
         if self.mode == 'gaze_target':
             feat = self.classifier(feat)
         elif self.mode == 'head_orientation':
-            feat = feat.mean(dim=[-1, -2]) # -1 is W, -2 is H. Average out the spatial dimensions. No need for  spatial pooling.
-            feat = feat.permute(0, 2, 1) # (B, 8, 96), follow the same format as the gaze target
-            feat = self.orientation_head(feat)
+            feat = feat.mean(dim=[-1, -2])  # Average spatial dimensions: (B, 96, T, H, W) -> (B, 96, T)
+            feat = feat.permute(0, 2, 1)    # (B, T, 96), follow the same format as the gaze target
+            feat = self.orientation_head(feat)  # (B, T, 2) in range [-1, 1]
+            
+            # Scale by Ego4D FOV-derived maximum angles
+            feat[:, :, 0] = feat[:, :, 0] * self.max_h_angle 
+            feat[:, :, 1] = feat[:, :, 1] * self.max_v_angle  
 
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat

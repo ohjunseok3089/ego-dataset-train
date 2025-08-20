@@ -17,6 +17,9 @@ DATA:
   TARGET_FPS: 30
   USE_OFFSET_SAMPLING: False
   GAUSSIAN_KERNEL: 19  # Metrics are sensitive to kernel size. Fix the kernel size for a fair comparison
+  # Ego4D camera parameters for head orientation angular mapping
+  HORIZONTAL_FOV: 110.0  # Ego4D horizontal field of view in degrees
+  VERTICAL_FOV: 110.0    # Ego4D vertical field of view in degrees
 MVIT:
   ZERO_DECAY_POS_CLS: False
   SEP_POS_EMBED: True
