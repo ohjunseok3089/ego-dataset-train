@@ -493,7 +493,7 @@ class CSTS(nn.Module):
         en_feat = en_feat.reshape(en_feat.size(0), *thw, en_feat.size(2)).permute(0, 4, 1, 2, 3)
         feat = feat + F.interpolate(en_feat, size=(thw[0]*2, thw[1], thw[2]), mode='trilinear')
 
-        # Separate final layers based on mode (PI's requirement)
+        # Separate final layers based on mode
         if self.mode == 'gaze_target':
             # Original heatmap prediction
             feat = self.classifier(feat)  # (B, 1, T, H, W)
