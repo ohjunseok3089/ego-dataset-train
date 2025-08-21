@@ -69,9 +69,15 @@ def train_epoch(
 
         with torch.cuda.amp.autocast(enabled=cfg.TRAIN.MIXED_PRECISION):
             if cfg.MODEL.LOSS_FUNC == 'kldiv+egonce':
-                preds = model(inputs, audio_frames, return_embed=True)
+                if cfg.MODEL.MODE == 'head_orientation':
+                    preds = model(inputs, audio_frames, return_embed=True, ground_truth_angles=labels_hm)
+                else:
+                    preds = model(inputs, audio_frames, return_embed=True)
             else:
-                preds = model(inputs, audio_frames)
+                if cfg.MODEL.MODE == 'head_orientation':
+                    preds = model(inputs, audio_frames, ground_truth_angles=labels_hm)
+                else:
+                    preds = model(inputs, audio_frames)
 
             if cfg.MODEL.LOSS_FUNC == 'kldiv+egonce':
                 kldiv_fun = losses.get_loss_func('kldiv')
@@ -192,7 +198,10 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer=None):
 
         val_meter.data_toc()
 
-        preds = model(inputs, audio_frames)
+        if cfg.MODEL.MODE == 'head_orientation':
+            preds = model(inputs, audio_frames, ground_truth_angles=labels_hm)
+        else:
+            preds = model(inputs, audio_frames)
         
         # Apply softmax only for heatmap outputs (gaze_target mode)
         if cfg.MODEL.MODE == 'gaze_target':

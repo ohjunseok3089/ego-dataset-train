@@ -341,7 +341,7 @@ class CSTS(nn.Module):
         else:
             return {}
 
-    def forward(self, x, y, return_embed=False, return_spatial_attn=False, return_temporal_attn=False):
+    def forward(self, x, y, return_embed=False, return_spatial_attn=False, return_temporal_attn=False, ground_truth_angles=None):
         inpt = x[0]  # size (B, 3, 8, 256, 256)
         x = self.patch_embed(inpt)  # size (B, 16384, 96)  16384 = 4*64*64
         y = self.patch_embed_audio(y)
@@ -514,6 +514,25 @@ class CSTS(nn.Module):
             # Convert to tensor and reshape back to (B, T, 2)
             feat = torch.tensor(head_orientation_angles, dtype=torch.float32, device=feat.device)
             feat = feat.reshape(B, T, 2)
+            
+            # Debugging
+            if ground_truth_angles is not None:
+                pred_angles_deg = feat * 180.0 / math.pi
+                gt_angles_deg = ground_truth_angles * 180.0 / math.pi
+                
+                angle_diff = torch.abs(pred_angles_deg - gt_angles_deg)
+                
+                mean_h_diff = torch.mean(angle_diff[:, :, 0])
+                mean_v_diff = torch.mean(angle_diff[:, :, 1])
+                
+                mode_str = "TRAINING" if self.training else "TESTING"
+                print(f"DEBUG Head Orientation ({mode_str}):")
+                print(f"  Sample 1 - Ground Truth (deg): H={gt_angles_deg[0, 0, 0]:.2f}, V={gt_angles_deg[0, 0, 1]:.2f}")
+                print(f"  Sample 1 - Predicted (deg):    H={pred_angles_deg[0, 0, 0]:.2f}, V={pred_angles_deg[0, 0, 1]:.2f}")
+                print(f"  Sample 1 - Difference (deg):   H={angle_diff[0, 0, 0]:.2f}, V={angle_diff[0, 0, 1]:.2f}")
+                print(f"  Batch Mean Difference (deg): H={mean_h_diff:.2f}, V={mean_v_diff:.2f}")
+                print(f"  Total Angular Error: {torch.sqrt(mean_h_diff**2 + mean_v_diff**2):.2f} degrees")
+                print("-" * 60)
             
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat

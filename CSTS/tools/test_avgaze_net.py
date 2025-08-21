@@ -50,7 +50,10 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
         test_meter.data_toc()
 
         # Perform the forward pass.
-        preds = model(inputs, audio_frames)
+        if cfg.MODEL.MODE == 'head_orientation':
+            preds = model(inputs, audio_frames, ground_truth_angles=labels_hm)
+        else:
+            preds = model(inputs, audio_frames)
 
         # Apply softmax only for heatmap outputs (gaze_target mode)
         if cfg.MODEL.MODE == 'gaze_target':
