@@ -69,9 +69,15 @@ def train_epoch(
 
         with torch.cuda.amp.autocast(enabled=cfg.TRAIN.MIXED_PRECISION):
             if cfg.MODEL.LOSS_FUNC == 'kldiv+egonce':
-                preds = model(inputs, audio_frames, return_embed=True)
+                if cfg.MODEL.MODE == 'head_orientation':
+                    preds = model(inputs, audio_frames, return_embed=True, ground_truth_angles=labels_hm)
+                else:
+                    preds = model(inputs, audio_frames, return_embed=True)
             else:
-                preds = model(inputs, audio_frames)
+                if cfg.MODEL.MODE == 'head_orientation':
+                    preds = model(inputs, audio_frames, ground_truth_angles=labels_hm)
+                else:
+                    preds = model(inputs, audio_frames)
 
             if cfg.MODEL.LOSS_FUNC == 'kldiv+egonce':
                 kldiv_fun = losses.get_loss_func('kldiv')
@@ -81,7 +87,9 @@ def train_epoch(
                 preds, v_embed, a_embed = preds
                 if cfg.NUM_GPUS > 1:
                     v_embed, a_embed = du.all_gather_with_grad([v_embed, a_embed])
-                preds = frame_softmax(preds, temperature=2)
+                # Apply softmax only for heatmap outputs (gaze_target mode)
+                if cfg.MODEL.MODE == 'gaze_target':
+                    preds = frame_softmax(preds, temperature=2)
                 similarity = sim_matrix(v_embed, a_embed)
                 kldiv_loss = kldiv_fun(preds, labels_hm)
                 egonce_loss = egonce_fun(similarity)
@@ -122,10 +130,14 @@ def train_epoch(
         loss = loss.item()
 
         # Compute the metrics.
-        preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
-        preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
-        preds_rescale = preds_rescale.view(preds.size())
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
+            preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
+            preds_rescale = preds_rescale.view(preds.size())
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            # Head orientation uses adaptive angular F1 metrics
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TRAIN.DATASET)
 
         # Update and log stats.
         train_meter.update_stats(f1, recall, precision, threshold, loss, lr, mb_size=inputs[0].size(0) * max(cfg.NUM_GPUS, 1))  # If running  on CPU (cfg.NUM_GPUS == 0), use 1 to represent 1 CPU.
@@ -186,18 +198,29 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer=None):
 
         val_meter.data_toc()
 
-        preds = model(inputs, audio_frames)
-        preds = frame_softmax(preds, temperature=2)  # KLDiv
+        if cfg.MODEL.MODE == 'head_orientation':
+            preds = model(inputs, audio_frames, ground_truth_angles=labels_hm)
+        else:
+            preds = model(inputs, audio_frames)
+        
+        # Apply softmax only for heatmap outputs (gaze_target mode)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds = frame_softmax(preds, temperature=2)  # KLDiv
+        # For head_orientation mode, preds are already angular coordinates
 
         # Gather all the predictions across all the devices to perform ensemble.
         if cfg.NUM_GPUS > 1:
             preds, labels_hm, labels = du.all_gather([preds, labels_hm, labels])
 
         # Compute the metrics.
-        preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
-        preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
-        preds_rescale = preds_rescale.view(preds.size())
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
+            preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
+            preds_rescale = preds_rescale.view(preds.size())
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TRAIN.DATASET)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            # Head orientation uses adaptive angular F1 metrics
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TRAIN.DATASET)
 
         val_meter.iter_toc()
         # Update and log stats.

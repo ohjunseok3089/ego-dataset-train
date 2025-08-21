@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 
 """Add custom configs and default values"""
 from fvcore.common.config import CfgNode
@@ -8,6 +7,10 @@ from fvcore.common.config import CfgNode
 def add_custom_config(_C):
     # Kernel size of gaze label
     _C.DATA.GAUSSIAN_KERNEL = 19
+    
+    # Field of view parameters for head orientation angular mapping. PRG Added.
+    _C.DATA.HORIZONTAL_FOV = 110.0  # (Default) Ego4D horizontal field of view in degrees
+    _C.DATA.VERTICAL_FOV = 110.0    # (Default) Ego4D vertical field of view in degrees
 
     # ---------------------------------------------------------------------------- #
     # Audio-visual gaze anticipation/estimation options
@@ -20,6 +23,11 @@ def add_custom_config(_C):
 
     # Weight of NCE loss for Audio-visual gaze modeling model
     _C.MODEL.LOSS_ALPHA = 1.0
+    
+    # Model mode for different tasks (gaze_target, head_orientation)
+    _C.MODEL.MODE = "gaze_target" # PRG Added.
 
     # If True, return spatial attention weights of audio signals from the spatial fusion module
     _C.MVIT.SPATIAL_AUDIO_ATTN = False
+
+    

@@ -260,7 +260,7 @@ def extract_audio(data_path, save_path, dataset):
             os.makedirs(os.path.join(save_path, vid), exist_ok=True)
 
             for clip in os.listdir(os.path.join(data_path, vid)):
-                ffmpeg_command = ['ffmpeg', '-i', os.path.join(data_path, vid, clip),
+                ffmpeg_command = ['ffmpeg', '-y', '-i', os.path.join(data_path, vid, clip),
                                   '-vn', '-acodec', 'pcm_s16le', '-ac', '1',  # Ego4D has 2 identical audio channels, so convert it to mono here
                                   '-ar', '24000',  # use 24k Hz as a default
                                   os.path.join(save_path, vid, clip.replace('mp4', 'wav'))]
@@ -279,7 +279,7 @@ def extract_audio(data_path, save_path, dataset):
             os.makedirs(os.path.join(save_path, vid), exist_ok=True)
 
             for clip in tqdm(os.listdir(os.path.join(data_path, vid))):
-                ffmpeg_command = ['ffmpeg', '-i', os.path.join(data_path, vid, clip),
+                ffmpeg_command = ['ffmpeg', '-y', '-i', os.path.join(data_path, vid, clip),
                                   '-vn', '-acodec', 'pcm_s16le', '-ar', '24000',  # use 24k Hz as a default
                                   os.path.join(save_path, vid, clip.replace('mp4', 'wav'))]
                 subprocess.call(ffmpeg_command)
@@ -332,9 +332,9 @@ def main():
     # save_path = f'{path_to_ego4d}/gaze_frame_label'
     # get_ego4d_frame_label(data_path=data_path, save_path=save_path)
     
-    # data_path = f'{path_to_ego4d}/clips.gaze'
-    # save_path = f'{path_to_ego4d}/clips.audio_24kHz'
-    # extract_audio(data_path=data_path, save_path=save_path, dataset='Ego4D')
+    data_path = f'{path_to_ego4d}/clips.gaze'
+    save_path = f'{path_to_ego4d}/clips.audio_24kHz'
+    extract_audio(data_path=data_path, save_path=save_path, dataset='Ego4D')
     
     data_path = f'{path_to_ego4d}/clips.audio_24kHz'
     save_path = f'{path_to_ego4d}/clips.audio_24kHz_stft'

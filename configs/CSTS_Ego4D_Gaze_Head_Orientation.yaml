@@ -1,6 +1,6 @@
 TRAIN:
   ENABLE: True
-  DATASET: ego4d_av_gaze_forecast
+  DATASET: ego4d_av_gaze_forecast # Chnage to  ego4d_av_gaze for estimation
   BATCH_SIZE: 8
   EVAL_PERIOD: 1
   CHECKPOINT_PERIOD: 1
@@ -17,6 +17,9 @@ DATA:
   TARGET_FPS: 30
   USE_OFFSET_SAMPLING: False
   GAUSSIAN_KERNEL: 19  # Metrics are sensitive to kernel size. Fix the kernel size for a fair comparison
+  # Ego4D camera parameters for head orientation angular mapping
+  HORIZONTAL_FOV: 110.0  # Ego4D horizontal field of view in degrees
+  VERTICAL_FOV: 110.0    # Ego4D vertical field of view in degrees
 MVIT:
   ZERO_DECAY_POS_CLS: False
   SEP_POS_EMBED: True
@@ -58,8 +61,9 @@ SOLVER:
   OPTIMIZING_METHOD: adamw
 MODEL:
   ARCH: mvit
+  MODE: head_orientation # PRG Added
   MODEL_NAME: CSTS
-  LOSS_FUNC: kldiv
+  LOSS_FUNC: head_orientation # PRG Added
   DROPOUT_RATE: 0.5
   LOSS_ALPHA: 0.05  # loss weights
 TEST:

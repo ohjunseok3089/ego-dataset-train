@@ -50,9 +50,15 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
         test_meter.data_toc()
 
         # Perform the forward pass.
-        preds = model(inputs, audio_frames)
+        if cfg.MODEL.MODE == 'head_orientation':
+            preds = model(inputs, audio_frames, ground_truth_angles=labels_hm)
+        else:
+            preds = model(inputs, audio_frames)
 
-        preds = frame_softmax(preds, temperature=2)  # KLDiv
+        # Apply softmax only for heatmap outputs (gaze_target mode)
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds = frame_softmax(preds, temperature=2)  # KLDiv
+        # For head_orientation mode, preds are already angular coordinates (B, T, 2)
 
         # Gather all the predictions across all the devices to perform ensemble.
         if cfg.NUM_GPUS > 1:
@@ -65,10 +71,17 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
             labels_hm = labels_hm.cpu()
             video_idx = video_idx.cpu()
 
-        preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
-        preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
-        preds_rescale = preds_rescale.view(preds.size())
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TEST.DATASET)
+        # PRG Added.
+        if cfg.MODEL.MODE == 'gaze_target':
+            preds_rescale = preds.detach().view(preds.size()[:-2] + (preds.size(-1) * preds.size(-2),))
+            preds_rescale = (preds_rescale - preds_rescale.min(dim=-1, keepdim=True)[0]) / (preds_rescale.max(dim=-1, keepdim=True)[0] - preds_rescale.min(dim=-1, keepdim=True)[0] + 1e-6)
+            preds_rescale = preds_rescale.view(preds.size())
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds_rescale, labels_hm, labels, dataset=cfg.TEST.DATASET)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            # Head orientation uses adaptive angular F1 metrics
+            # preds: (B, T, 2) - predicted angular coordinates in radians
+            # labels_hm: (B, T, 2) - target angular coordinates in radians (from dataset conversion)
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TEST.DATASET)
 
         # Visualization
         # gaze forecast
@@ -84,7 +97,10 @@ def perform_test(test_loader, model, test_meter, cfg, writer=None):
         test_meter.iter_toc()
 
         # Update and log stats.
-        test_meter.update_stats(f1, recall, precision, preds=preds_rescale, labels_hm=labels_hm, labels=labels)  # If running  on CPU (cfg.NUM_GPUS == 0), use 1 to represent 1 CPU.
+        if cfg.MODEL.MODE == 'gaze_target':
+            test_meter.update_stats(f1, recall, precision, preds=preds_rescale, labels_hm=labels_hm, labels=labels)
+        elif cfg.MODEL.MODE == 'head_orientation':
+            test_meter.update_stats(f1, recall, precision, preds=preds, labels_hm=labels_hm, labels=labels)
         test_meter.log_iter_stats(cur_iter)
 
         test_meter.iter_tic()
@@ -130,7 +146,8 @@ def test(cfg):
         num_clips=cfg.TEST.NUM_ENSEMBLE_VIEWS * cfg.TEST.NUM_SPATIAL_CROPS,
         num_cls=cfg.MODEL.NUM_CLASSES,
         overall_iters=len(test_loader),
-        dataset=cfg.TEST.DATASET
+        dataset=cfg.TEST.DATASET,
+        mode=cfg.MODEL.MODE  # PRG Added: pass mode for metric selection
     )
 
     writer = None  # Forbid use tensorboard for test

@@ -26,7 +26,8 @@ class TestGazeMeter(object):
             num_clips,
             num_cls,
             overall_iters,
-            dataset
+            dataset,
+            mode='gaze_target'  # PRG Added: mode parameter for head orientation support
     ):
         """
         Construct tensors to store the predictions and labels.
@@ -37,9 +38,11 @@ class TestGazeMeter(object):
             num_cls (int): number of classes for each prediction.
             overall_iters (int): overall iterations for testing.
             dataset (str): name of the dataset.
+            mode (str): model mode ('gaze_target' or 'head_orientation').
         """
 
         self.dataset = dataset
+        self.mode = mode  # PRG Added: store mode for metric selection
         self.iter_timer = Timer()
         self.data_timer = Timer()
         self.net_timer = Timer()
@@ -133,7 +136,12 @@ class TestGazeMeter(object):
         preds = torch.cat(self.preds, dim=0)
         labels_hm = torch.cat(self.labels_hm, dim=0)
         labels = torch.cat(self.labels, dim=0)
-        f1, recall, precision, threshold = metrics.adaptive_f1(preds, labels_hm, labels, dataset=self.dataset)
+        
+        # PRG Added: mode-based metric selection
+        if self.mode == 'head_orientation':
+            f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=self.dataset)
+        else:  # gaze_target mode
+            f1, recall, precision, threshold = metrics.adaptive_f1(preds, labels_hm, labels, dataset=self.dataset)
 
         self.stats = {
             "split": "test_final",

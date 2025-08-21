@@ -22,8 +22,9 @@ class CSTS(nn.Module):
     Multiscale Vision Transformers with Audio-Visual Fusion
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, mode='gaze_target'):
         super(CSTS, self).__init__()
+        self.mode = mode
         # ============================= Get parameters =============================
         assert cfg.DATA.TRAIN_CROP_SIZE == cfg.DATA.TEST_CROP_SIZE
         self.cfg = cfg
@@ -340,7 +341,7 @@ class CSTS(nn.Module):
         else:
             return {}
 
-    def forward(self, x, y, return_embed=False, return_spatial_attn=False, return_temporal_attn=False):
+    def forward(self, x, y, return_embed=False, return_spatial_attn=False, return_temporal_attn=False, ground_truth_angles=None):
         inpt = x[0]  # size (B, 3, 8, 256, 256)
         x = self.patch_embed(inpt)  # size (B, 16384, 96)  16384 = 4*64*64
         y = self.patch_embed_audio(y)
@@ -478,8 +479,61 @@ class CSTS(nn.Module):
         en_feat = en_feat.reshape(en_feat.size(0), *thw, en_feat.size(2)).permute(0, 4, 1, 2, 3)
         feat = feat + F.interpolate(en_feat, size=(thw[0]*2, thw[1], thw[2]), mode='trilinear')
 
-        feat = self.classifier(feat)
-
+        feat = self.classifier(feat)  # (B, 1, T, H, W)
+        if self.mode == 'head_orientation':
+            # Convert heatmap to angular coordinates for head orientation prediction
+            horizontal_fov = self.cfg.DATA.get('HORIZONTAL_FOV', 110.0)  # degrees
+            vertical_fov = self.cfg.DATA.get('VERTICAL_FOV', 110.0)      # degrees
+            
+            max_h_angle = math.radians(horizontal_fov / 2.0)  
+            max_v_angle = math.radians(vertical_fov / 2.0)   
+            
+            B, C, T, H, W = feat.shape
+            # Reshape to process each frame independently: (B*T, C, H, W)
+            feat_reshaped = feat.permute(0, 2, 1, 3, 4).reshape(B*T, C, H, W)
+            
+            head_orientation_angles = []
+            for bt_idx in range(B*T):
+                hm = feat_reshaped[bt_idx, 0]  # (H, W) heatmap for this frame
+                # Find the position of maximum value
+                flat_idx = torch.argmax(hm.flatten())
+                y_idx = flat_idx // hm.shape[1]  # row index
+                x_idx = flat_idx % hm.shape[1]   # column index
+                
+                # Convert pixel coordinates to normalized coordinates [-1, 1]
+                # Center of image corresponds to 0 angular displacement
+                x_norm = (2.0 * x_idx / (hm.shape[1] - 1)) - 1.0  # [-1, 1]
+                y_norm = (2.0 * y_idx / (hm.shape[0] - 1)) - 1.0  # [-1, 1]
+                
+                # Map to angular displacement using Ego4D FOV
+                angle_x = x_norm * max_h_angle  # horizontal angle in radians
+                angle_y = y_norm * max_v_angle  # vertical angle in radians
+                
+                head_orientation_angles.append([angle_x, angle_y])
+            
+            # Convert to tensor and reshape back to (B, T, 2)
+            feat = torch.tensor(head_orientation_angles, dtype=torch.float32, device=feat.device)
+            feat = feat.reshape(B, T, 2)
+            
+            # Debugging
+            if ground_truth_angles is not None:
+                pred_angles_deg = feat * 180.0 / math.pi
+                gt_angles_deg = ground_truth_angles * 180.0 / math.pi
+                
+                angle_diff = torch.abs(pred_angles_deg - gt_angles_deg)
+                
+                mean_h_diff = torch.mean(angle_diff[:, :, 0])
+                mean_v_diff = torch.mean(angle_diff[:, :, 1])
+                
+                mode_str = "TRAINING" if self.training else "TESTING"
+                print(f"DEBUG Head Orientation ({mode_str}):")
+                print(f"  Sample 1 - Ground Truth (deg): H={gt_angles_deg[0, 0, 0]:.2f}, V={gt_angles_deg[0, 0, 1]:.2f}")
+                print(f"  Sample 1 - Predicted (deg):    H={pred_angles_deg[0, 0, 0]:.2f}, V={pred_angles_deg[0, 0, 1]:.2f}")
+                print(f"  Sample 1 - Difference (deg):   H={angle_diff[0, 0, 0]:.2f}, V={angle_diff[0, 0, 1]:.2f}")
+                print(f"  Batch Mean Difference (deg): H={mean_h_diff:.2f}, V={mean_v_diff:.2f}")
+                print(f"  Total Angular Error: {torch.sqrt(mean_h_diff**2 + mean_v_diff**2):.2f} degrees")
+                print("-" * 60)
+            
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat
         elif not return_embed and (return_spatial_attn or return_temporal_attn):
