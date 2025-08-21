@@ -299,21 +299,7 @@ class CSTS(nn.Module):
 
             setattr(self, f'decode_block{i+1}', decoder_block)
 
-        if self.mode == 'gaze_target':
-            # Original gaze target prediction with heatmap
-            self.classifier = nn.Conv3d(96, 1, kernel_size=1)
-        elif self.mode == 'head_orientation':
-            # Separate linear layer for head orientation prediction
-            self.orientation_head = nn.Sequential(
-                nn.Linear(96, 2),     # (B, T, 96) -> (B, T, 2)
-                nn.Tanh()            # Bound output to [-1, 1]
-            )
-            
-            # FOV parameters for scaling
-            horizontal_fov = self.cfg.DATA.HORIZONTAL_FOV  # degrees  
-            vertical_fov = self.cfg.DATA.VERTICAL_FOV      # degrees
-            self.max_h_angle = math.radians(horizontal_fov / 2.0)
-            self.max_v_angle = math.radians(vertical_fov / 2.0)
+        self.classifier = nn.Conv3d(96, 1, kernel_size=1)
 
         # =============================== Initialization ===============================
         if self.sep_pos_embed:
@@ -493,20 +479,42 @@ class CSTS(nn.Module):
         en_feat = en_feat.reshape(en_feat.size(0), *thw, en_feat.size(2)).permute(0, 4, 1, 2, 3)
         feat = feat + F.interpolate(en_feat, size=(thw[0]*2, thw[1], thw[2]), mode='trilinear')
 
-        # Separate final layers based on mode (PI's requirement)
-        if self.mode == 'gaze_target':
-            # Original heatmap prediction
-            feat = self.classifier(feat)  # (B, 1, T, H, W)
-        elif self.mode == 'head_orientation':
-            # Direct angular coordinate prediction with separate linear layer
-            feat = feat.mean(dim=[-1, -2])  # Average spatial dimensions: (B, 96, T, H, W) -> (B, 96, T)
-            feat = feat.permute(0, 2, 1)    # (B, T, 96), follow the same format as the gaze target
-            feat = self.orientation_head(feat)  # (B, T, 2) in range [-1, 1]
+        feat = self.classifier(feat)  # (B, 1, T, H, W)
+        if self.mode == 'head_orientation':
+            # Convert heatmap to angular coordinates for head orientation prediction
+            horizontal_fov = self.cfg.DATA.get('HORIZONTAL_FOV', 110.0)  # degrees
+            vertical_fov = self.cfg.DATA.get('VERTICAL_FOV', 110.0)      # degrees
             
-            # Scale by FOV-derived maximum angles  
-            feat[:, :, 0] = feat[:, :, 0] * self.max_h_angle  # horizontal angles
-            feat[:, :, 1] = feat[:, :, 1] * self.max_v_angle  # vertical angles  
-
+            max_h_angle = math.radians(horizontal_fov / 2.0)  
+            max_v_angle = math.radians(vertical_fov / 2.0)   
+            
+            B, C, T, H, W = feat.shape
+            # Reshape to process each frame independently: (B*T, C, H, W)
+            feat_reshaped = feat.permute(0, 2, 1, 3, 4).reshape(B*T, C, H, W)
+            
+            head_orientation_angles = []
+            for bt_idx in range(B*T):
+                hm = feat_reshaped[bt_idx, 0]  # (H, W) heatmap for this frame
+                # Find the position of maximum value
+                flat_idx = torch.argmax(hm.flatten())
+                y_idx = flat_idx // hm.shape[1]  # row index
+                x_idx = flat_idx % hm.shape[1]   # column index
+                
+                # Convert pixel coordinates to normalized coordinates [-1, 1]
+                # Center of image corresponds to 0 angular displacement
+                x_norm = (2.0 * x_idx / (hm.shape[1] - 1)) - 1.0  # [-1, 1]
+                y_norm = (2.0 * y_idx / (hm.shape[0] - 1)) - 1.0  # [-1, 1]
+                
+                # Map to angular displacement using Ego4D FOV
+                angle_x = x_norm * max_h_angle  # horizontal angle in radians
+                angle_y = y_norm * max_v_angle  # vertical angle in radians
+                
+                head_orientation_angles.append([angle_x, angle_y])
+            
+            # Convert to tensor and reshape back to (B, T, 2)
+            feat = torch.tensor(head_orientation_angles, dtype=torch.float32, device=feat.device)
+            feat = feat.reshape(B, T, 2)
+            
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat
         elif not return_embed and (return_spatial_attn or return_temporal_attn):
