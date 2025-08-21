@@ -72,3 +72,65 @@ def adaptive_f1(preds, labels_hm, labels, dataset):
 
     return float(f1[max_idx].cpu().numpy()), float(recall[max_idx].cpu().numpy()), \
            float(precision[max_idx].cpu().numpy()), thresholds[max_idx]  # need np.float64 in logging rather than np.float32
+
+
+def adaptive_angular_f1(preds, labels_hm, dataset):
+    """
+    PRG Added.
+    Automatically select the angular threshold getting the best f1 score for head orientation.
+    
+    Args:
+        preds: (B, T, 2) - predicted angular coordinates in radians
+        labels_hm: (B, T, 2) - target angular coordinates in radians  
+        dataset: dataset name for threshold selection
+        
+    Returns:
+        f1, recall, precision, threshold (in degrees)
+    """
+    # Set appropriate angular thresholds based on dataset precision
+    if 'ego4d' in dataset.lower():
+        thresholds_deg = np.linspace(0.05, 0.8, 30)    
+    elif 'aria' in dataset.lower(): 
+        thresholds_deg = np.linspace(0.02, 0.6, 30)    
+    else:  # general head orientation
+        thresholds_deg = np.linspace(0.01, 1.0, 50)
+    
+    # Convert thresholds to radians for comparison
+    thresholds_rad = np.deg2rad(thresholds_deg)
+    
+    # Calculate angular distances between predictions and targets
+    angular_errors = torch.norm(preds - labels_hm, dim=-1)  # (B, T)
+    
+    # For each threshold, calculate precision/recall/F1
+    best_f1 = 0.0
+    best_recall = 0.0 
+    best_precision = 0.0
+    best_threshold = 0.0
+    
+    for i, threshold_rad in enumerate(thresholds_rad):
+        # Binary classification: is prediction within threshold?
+        correct_predictions = (angular_errors <= threshold_rad).float()  # (B, T)
+        
+        # Calculate metrics
+        total_predictions = correct_predictions.numel()
+        true_positives = correct_predictions.sum().item()
+        
+        # For angular accuracy, we consider all samples as "positive class"
+        # So recall = accuracy within threshold
+        recall = true_positives / total_predictions if total_predictions > 0 else 0.0
+        
+        # Precision: among predictions within threshold, how many are actually good?
+        # For head orientation, precision ≈ recall (accuracy within threshold)
+        precision = recall
+        
+        # F1 score
+        f1 = (2 * recall * precision) / (recall + precision + 1e-6) if (recall + precision) > 0 else 0.0
+        
+        # Update best metrics
+        if f1 > best_f1:
+            best_f1 = f1
+            best_recall = recall  
+            best_precision = precision
+            best_threshold = thresholds_deg[i]  # Return in degrees
+    
+    return float(best_f1), float(best_recall), float(best_precision), float(best_threshold)

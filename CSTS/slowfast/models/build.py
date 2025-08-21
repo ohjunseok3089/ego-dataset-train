@@ -30,7 +30,8 @@ def build_model(cfg, gpu_id=None):
 
     # Construct the model
     name = cfg.MODEL.MODEL_NAME
-    model = MODEL_REGISTRY.get(name)(cfg)
+    model_mode = cfg.MODEL.get('MODE', 'gaze_target') # PRG Customized: Add mode to the model
+    model = MODEL_REGISTRY.get(name)(cfg, mode=model_mode)
 
     if cfg.NUM_GPUS:
         if gpu_id is None:

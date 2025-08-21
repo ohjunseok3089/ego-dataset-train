@@ -22,8 +22,9 @@ class CSTS(nn.Module):
     Multiscale Vision Transformers with Audio-Visual Fusion
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, mode='gaze_target'):
         super(CSTS, self).__init__()
+        self.mode = mode
         # ============================= Get parameters =============================
         assert cfg.DATA.TRAIN_CROP_SIZE == cfg.DATA.TEST_CROP_SIZE
         self.cfg = cfg
@@ -298,7 +299,21 @@ class CSTS(nn.Module):
 
             setattr(self, f'decode_block{i+1}', decoder_block)
 
-        self.classifier = nn.Conv3d(96, 1, kernel_size=1)
+        if self.mode == 'gaze_target':
+            # Original gaze target prediction with heatmap
+            self.classifier = nn.Conv3d(96, 1, kernel_size=1)
+        elif self.mode == 'head_orientation':
+            # Separate linear layer for head orientation prediction
+            self.orientation_head = nn.Sequential(
+                nn.Linear(96, 2),     # (B, T, 96) -> (B, T, 2)
+                nn.Tanh()            # Bound output to [-1, 1]
+            )
+            
+            # FOV parameters for scaling
+            horizontal_fov = self.cfg.DATA.HORIZONTAL_FOV  # degrees  
+            vertical_fov = self.cfg.DATA.VERTICAL_FOV      # degrees
+            self.max_h_angle = math.radians(horizontal_fov / 2.0)
+            self.max_v_angle = math.radians(vertical_fov / 2.0)
 
         # =============================== Initialization ===============================
         if self.sep_pos_embed:
@@ -478,7 +493,19 @@ class CSTS(nn.Module):
         en_feat = en_feat.reshape(en_feat.size(0), *thw, en_feat.size(2)).permute(0, 4, 1, 2, 3)
         feat = feat + F.interpolate(en_feat, size=(thw[0]*2, thw[1], thw[2]), mode='trilinear')
 
-        feat = self.classifier(feat)
+        # Separate final layers based on mode
+        if self.mode == 'gaze_target':
+            # Original heatmap prediction
+            feat = self.classifier(feat)  # (B, 1, T, H, W)
+        elif self.mode == 'head_orientation':
+            # Direct angular coordinate prediction with separate linear layer
+            feat = feat.mean(dim=[-1, -2])  # Average spatial dimensions: (B, 96, T, H, W) -> (B, 96, T)
+            feat = feat.permute(0, 2, 1)    # (B, T, 96), follow the same format as the gaze target
+            feat = self.orientation_head(feat)  # (B, T, 2) in range [-1, 1]
+            
+            # Scale by FOV-derived maximum angles  
+            feat[:, :, 0] = feat[:, :, 0] * self.max_h_angle  # horizontal angles
+            feat[:, :, 1] = feat[:, :, 1] * self.max_v_angle  # vertical angles  
 
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat
