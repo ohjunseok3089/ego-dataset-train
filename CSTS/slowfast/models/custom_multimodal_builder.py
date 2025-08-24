@@ -504,8 +504,8 @@ class CSTS(nn.Module):
             feat = self.orientation_head(feat)  # (B, T, 2) in range [-1, 1]
             
             # Scale by FOV-derived maximum angles  
-            feat[:, :, 0] = feat[:, :, 0] * self.max_h_angle  # horizontal angles
-            feat[:, :, 1] = feat[:, :, 1] * self.max_v_angle  # vertical angles  
+            scaling_factor = torch.tensor([self.max_h_angle, self.max_v_angle], device=feat.device)
+            feat = feat * scaling_factor.unsqueeze(0).unsqueeze(0)  # (B, T, 2)  
 
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat
