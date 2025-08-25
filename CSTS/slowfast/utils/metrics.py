@@ -134,3 +134,13 @@ def adaptive_angular_f1(preds, labels_hm, dataset):
             best_threshold = thresholds_deg[i]  # Return in degrees
     
     return float(best_f1), float(best_recall), float(best_precision), float(best_threshold)
+
+def mean_angular_error(preds, labels_hm):
+    """
+    PRG Added.
+    Calculate the mean angular error between predictions and targets.
+    """
+    # Calculate angular distances (errors) in radians
+    angular_errors_rad = torch.norm(preds - labels_hm, dim=-1) # (B, T)
+    
+    return float(angular_errors_rad.mean().cpu().numpy()) # (B, T) -> (B,)
