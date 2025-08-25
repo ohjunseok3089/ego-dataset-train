@@ -89,11 +89,11 @@ def adaptive_angular_f1(preds, labels_hm, dataset):
     """
     # Set appropriate angular thresholds based on dataset precision
     if 'ego4d' in dataset.lower():
-        thresholds_deg = np.linspace(0.05, 0.8, 30)    
+        thresholds_deg = np.linspace(0.05, 20, 100)    
     elif 'aria' in dataset.lower(): 
-        thresholds_deg = np.linspace(0.02, 0.6, 30)    
+        thresholds_deg = np.linspace(0.02, 20, 100)    
     else:  # general head orientation
-        thresholds_deg = np.linspace(0.01, 1.0, 50)
+        thresholds_deg = np.linspace(0.01, 20, 100)
     
     # Convert thresholds to radians for comparison
     thresholds_rad = np.deg2rad(thresholds_deg)
