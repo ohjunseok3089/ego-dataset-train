@@ -132,6 +132,26 @@ def train_epoch(
         elif cfg.MODEL.MODE == 'head_orientation':
             # Head orientation uses adaptive angular F1 metrics
             f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TRAIN.DATASET)
+            
+            # Print angle comparison and MAE for the first few samples
+            if (cur_iter + 1) % 50 == 0:  # Print every 50 iterations
+                with torch.no_grad():
+                    # Convert back to degrees for easier interpretation
+                    preds_degrees = torch.rad2deg(preds)
+                    labels_degrees = torch.rad2deg(labels_hm)
+                    
+                    # Calculate MAE in degrees
+                    mae_degrees = torch.mean(torch.abs(preds_degrees - labels_degrees), dim=(0, 1))
+                    
+                    # Print first sample for comparison
+                    print(f"\n=== Iteration {cur_iter + 1} - Angle Comparison ===")
+                    print(f"Sample 0, Frame 0:")
+                    print(f"  Ground Truth (degrees): [{labels_degrees[0, 0, 0]:.2f}, {labels_degrees[0, 0, 1]:.2f}]")
+                    print(f"  Predicted (degrees):    [{preds_degrees[0, 0, 0]:.2f}, {preds_degrees[0, 0, 1]:.2f}]")
+                    print(f"  Error (degrees):        [{abs(preds_degrees[0, 0, 0] - labels_degrees[0, 0, 0]):.2f}, {abs(preds_degrees[0, 0, 1] - labels_degrees[0, 0, 1]):.2f}]")
+                    print(f"Overall MAE (degrees): [{mae_degrees[0]:.2f}, {mae_degrees[1]:.2f}]")
+                    print(f"Overall MAE mean (degrees): {mae_degrees.mean():.2f}")
+                    print("=" * 60)
 
         # Update and log stats.
         train_meter.update_stats(f1, recall, precision, threshold, loss, lr, mb_size=inputs[0].size(0) * max(cfg.NUM_GPUS, 1))  # If running  on CPU (cfg.NUM_GPUS == 0), use 1 to represent 1 CPU.
@@ -212,6 +232,26 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, writer=None):
         elif cfg.MODEL.MODE == 'head_orientation':
             # Head orientation uses adaptive angular F1 metrics
             f1, recall, precision, threshold = metrics.adaptive_angular_f1(preds, labels_hm, dataset=cfg.TRAIN.DATASET)
+            
+            # Print angle comparison and MAE for validation (less frequent)
+            if (cur_iter + 1) % 100 == 0:  # Print every 100 iterations for validation
+                with torch.no_grad():
+                    # Convert back to degrees for easier interpretation
+                    preds_degrees = torch.rad2deg(preds)
+                    labels_degrees = torch.rad2deg(labels_hm)
+                    
+                    # Calculate MAE in degrees
+                    mae_degrees = torch.mean(torch.abs(preds_degrees - labels_degrees), dim=(0, 1))
+                    
+                    # Print first sample for comparison
+                    print(f"\n=== VALIDATION Iteration {cur_iter + 1} - Angle Comparison ===")
+                    print(f"Sample 0, Frame 0:")
+                    print(f"  Ground Truth (degrees): [{labels_degrees[0, 0, 0]:.2f}, {labels_degrees[0, 0, 1]:.2f}]")
+                    print(f"  Predicted (degrees):    [{preds_degrees[0, 0, 0]:.2f}, {preds_degrees[0, 0, 1]:.2f}]")
+                    print(f"  Error (degrees):        [{abs(preds_degrees[0, 0, 0] - labels_degrees[0, 0, 0]):.2f}, {abs(preds_degrees[0, 0, 1] - labels_degrees[0, 0, 1]):.2f}]")
+                    print(f"Overall VAL MAE (degrees): [{mae_degrees[0]:.2f}, {mae_degrees[1]:.2f}]")
+                    print(f"Overall VAL MAE mean (degrees): {mae_degrees.mean():.2f}")
+                    print("=" * 70)
 
         val_meter.iter_toc()
         # Update and log stats.

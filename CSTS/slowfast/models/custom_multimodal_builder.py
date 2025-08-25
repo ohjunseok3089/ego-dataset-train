@@ -496,26 +496,18 @@ class CSTS(nn.Module):
         # =============================== Head Orientation =============================== PRG Added
         
         # Separate final layers based on mode
-        print(f"Model mode: {self.mode}, feat shape before: {feat.shape}")
         if self.mode == 'gaze_target':
             # Original heatmap prediction
             feat = self.classifier(feat)  # (B, 1, T, H, W)
         elif self.mode == 'head_orientation':
-            print("Entering head_orientation branch")
             # Direct angular coordinate prediction with separate linear layer
             feat = feat.mean(dim=[-1, -2])  # Average spatial dimensions: (B, 96, T, H, W) -> (B, 96, T)
-            print(f"After mean: {feat.shape}")
             feat = feat.permute(0, 2, 1)    # (B, T, 96), follow the same format as the gaze target
-            print(f"After permute: {feat.shape}")
 
             feat = self.orientation_head(feat).clone()  # (B, T, 2) in range [-1, 1], Avoid inplace operation
-            print(f"After orientation_head: {feat.shape}")
             # Scale by FOV-derived maximum angles  
             scaling_factor = torch.tensor([self.max_h_angle, self.max_v_angle], device=feat.device)
             feat = (feat * scaling_factor.view(1, 1, 2)) # To ensure the same shape as angles. (B, T, 2)
-            print(f"Out shape: {feat.shape}")
-        else:
-            print(f"Unknown mode: {self.mode}, feat shape: {feat.shape}")
 
         if not return_embed and not return_spatial_attn and not return_temporal_attn:
             return feat

@@ -45,7 +45,7 @@ def adaptive_f1(preds, labels_hm, labels, dataset):
     all_preds = torch.zeros(size=(thresholds.shape + labels_hm.size()), device=labels_hm.device)
     all_labels = torch.zeros(size=(thresholds.shape + labels_hm.size()), device=labels_hm.device)
     binary_labels = (labels_hm > 0.001).int()  # change to 0.001
-    for i in range(thresholds.shape[0]):  # There is some space for improvement. You can calculate f1 in the loop rather than save all preds. It consumes much memory.
+    for i in range(thresholds.shape[0]):
         binary_preds = (preds.squeeze(1) > thresholds[i]).int()
         all_preds[i, ...] = binary_preds
         all_labels[i, ...] = binary_labels
